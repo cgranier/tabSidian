@@ -16,7 +16,7 @@ function generateMarkdown(tabs) {
   
       const markdown = generateMarkdown(tabs);
   
-      chrome.tabs.create({ url: 'data:text/html;charset=UTF-8,' + encodeURIComponent(markdown) });
+      chrome.tabs.create({ url: 'data:text/plain;charset=UTF-8,' + encodeURIComponent(markdown) });
     });
   });
   

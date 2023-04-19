@@ -3,17 +3,20 @@ function generateMarkdown(tabs) {
   
     for (const tab of tabs) {
       output.push(`\n## ${tab.title}\n`);
-      output.push(`[${tab.url}](${tab.url})`);
+      output.push(`[${tab.url}](${tab.url})\n`);
     }
   
     return output.join('');
   }
+
+  chrome.browserAction.onClicked.addListener(() => {
+    chrome.windows.getAll({ populate: true, windowTypes: ['normal'] }, (windows) => {
+      const currentWindow = windows.find((window) => window.focused);
+      const tabs = currentWindow.tabs;
   
-  chrome.browserAction.onClicked.addListener(async () => {
-    const [currentWindow] = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] });
-    const tabs = currentWindow.tabs;
+      const markdown = generateMarkdown(tabs);
   
-    const markdown = generateMarkdown(tabs);
-  
-    await chrome.tabs.create({ url: 'data:text/html;charset=UTF-8,' + encodeURIComponent(markdown) });
+      chrome.tabs.create({ url: 'data:text/html;charset=UTF-8,' + encodeURIComponent(markdown) });
+    });
   });
+  

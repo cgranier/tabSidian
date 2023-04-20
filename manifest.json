@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "Tab Summarizer",
-    "version": "0.13",
+    "version": "0.14",
     "description": "A browser extension to summarize open tabs.",
     "icons": {
       "48": "icon48.png",

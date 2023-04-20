@@ -1,13 +1,16 @@
 function generateMarkdown(tabs) {
-    const output = ['# Open Tabs\n'];
+    const timestamp = new Date();
+    const formattedTimestamp = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}_${String(timestamp.getHours()).padStart(2, '0')}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
+  
+    let markdown = `# ${formattedTimestamp} Open Tabs\n\n`;
   
     for (const tab of tabs) {
-      output.push(`\n## ${tab.title}\n`);
-      output.push(`[${tab.url}](${tab.url})\n`);
+      markdown += `## ${tab.title}\n[${tab.url}](${tab.url})\n\n`;
     }
   
-    return output.join('');
+    return markdown;
   }
+  
 
 function shouldProcessTab(tab, restrictedUrls) {
     const isPinned = tab.pinned;

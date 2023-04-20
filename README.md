@@ -41,6 +41,8 @@ To install TabSidian, follow these steps:
 
 The generated markdown file will have a format similar to the following:
 
+![](sample-output.png)
+
 ---
 date_created: 2023-04-11
 time_created: 16:58:42

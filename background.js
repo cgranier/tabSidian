@@ -17,12 +17,11 @@ function shouldProcessTab(tab, restrictedUrls) {
     return !isPinned && !isSettingsTab && !isRestrictedUrl;
   }
   
-  chrome.browserAction.onClicked.addListener(() => {
+chrome.browserAction.onClicked.addListener(() => {
     chrome.storage.sync.get('restrictedUrls', ({ restrictedUrls }) => {
-      restrictedUrls = restrictedUrls || ['gmail.com', 'google.com', 'bing.com'];
       chrome.windows.getAll({ populate: true, windowTypes: ['normal'] }, (windows) => {
         const currentWindow = windows.find((window) => window.focused);
-        const tabs = currentWindow.tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls));
+        const tabs = currentWindow.tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls || []));
   
         const markdown = generateMarkdown(tabs);
   
@@ -30,4 +29,5 @@ function shouldProcessTab(tab, restrictedUrls) {
       });
     });
   });
+  
   

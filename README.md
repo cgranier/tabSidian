@@ -1,6 +1,6 @@
-# TabSidian
+# tabSidian
 
-TabSidian is a Microsoft Edge browser extension that helps users easily generate an Obsidian-compatible markdown file containing a list of their open tabs. The extension filters out pre-defined restricted URLs, such as settings and pinned tabs, and organizes the remaining tabs with their titles and URLs in a markdown format.
+tabSidian is a Microsoft Edge browser extension that helps users easily generate an Obsidian-compatible markdown file containing a list of their open tabs. The extension filters out pre-defined restricted URLs, such as settings and pinned tabs, and organizes the remaining tabs with their titles and URLs in a markdown format.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ TabSidian is a Microsoft Edge browser extension that helps users easily generate
 
 ## Installation
 
-To install TabSidian, follow these steps:
+To install tabSidian, follow these steps:
 
 1. Download the source code as a ZIP file or clone the repository using Git.
 2. Extract the downloaded ZIP file to a folder on your local machine.
@@ -26,7 +26,7 @@ To install TabSidian, follow these steps:
 
 ## Usage
 
-1. Click on the TabSidian extension icon in the toolbar.
+1. Click on the tabSidian extension icon in the toolbar.
 2. The extension will process all open tabs (excluding restricted URLs) and generate a markdown file.
 3. A download prompt will appear, allowing you to save the generated markdown file to your local storage.
 4. Import the markdown file into Obsidian or any other markdown-compatible application for further use.

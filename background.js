@@ -1,8 +1,21 @@
 function generateMarkdownAndTimestamp(tabs) {
     const timestamp = new Date();
-    const formattedTimestamp = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}_${String(timestamp.getHours()).padStart(2, '0')}-${String(timestamp.getMinutes()).padStart(2, '0')}-${String(timestamp.getSeconds()).padStart(2, '0')}`;
+    const formattedTimestamp = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}T${String(timestamp.getHours()).padStart(2, '0')}-${String(timestamp.getMinutes()).padStart(2, '0')}-${String(timestamp.getSeconds()).padStart(2, '0')}`;
   
-    let markdown = '';
+    const localDate = timestamp.toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$1-$2');
+  
+    const localTime = timestamp.toLocaleString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  
+    let markdown = `---\ndate_created: ${localDate}\ntime_created: ${localTime}\n---\n\n`;
   
     for (const tab of tabs) {
       markdown += `## ${tab.title}\n[${tab.url}](${tab.url})\n\n`;
@@ -10,7 +23,6 @@ function generateMarkdownAndTimestamp(tabs) {
   
     return { markdown, formattedTimestamp };
   }
-  
 
 function shouldProcessTab(tab, restrictedUrls) {
     const isPinned = tab.pinned;

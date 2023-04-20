@@ -41,16 +41,20 @@ To install TabSidian, follow these steps:
 
 The generated markdown file will have a format similar to the following:
 
----
-date_created: 2023-04-11
-time_created: 16:58:42
----
-
-## Tab Title 1
-[https://example1.com](https://example1.com)
-
-## Tab Title 2
-[https://example2.com](https://example2.com)
+>\---
+>
+>date_created: 2023-04-11
+>
+>time_created: 16:58:42
+>
+>\---
+>
+>## Tab Title 1
+>[https://example1.com](https://example1.com)
+>
+>## Tab Title 2
+>[https://example2.com](https://example2.com)
+>
 
 ## Limitations
 
@@ -59,11 +63,11 @@ time_created: 16:58:42
 
 ## Author
 
-- Carlos Granier
-- [cgranier](https://github.com/cgranier)
-- [cgranier](https://twitter.com/cgranier)
+Carlos Granier
+- [GitHub](https://github.com/cgranier)
+- [Twitter](https://twitter.com/cgranier)
 
-- GPT-4
+GPT-4
 - [GPT-4](https://chat.openai.com/)
 
 ## Built With

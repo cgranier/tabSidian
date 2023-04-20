@@ -1,19 +1,20 @@
 {
     "manifest_version": 2,
-    "name": "Tab Summarizer",
-    "version": "0.14",
-    "description": "A browser extension to summarize open tabs.",
+    "name": "tabSidian",
+    "version": "0.15",
+    "description": "A browser extension to summarize open tabs into Obsidian markdown files.",
     "icons": {
       "48": "icon48.png",
       "128": "icon128.png"
     },
     "browser_action": {
       "default_icon": "icon48.png",
-      "default_title": "Summarize Tabs"
+      "default_title": "tabSidian"
     },
     "permissions": [
       "tabs",
-      "storage"
+      "storage",
+      "downloads"
     ],
     "options_page": "options.html",
     "background": {

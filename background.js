@@ -1,6 +1,6 @@
-function generateMarkdown(tabs) {
+function generateMarkdownAndTimestamp(tabs) {
     const timestamp = new Date();
-    const formattedTimestamp = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}_${String(timestamp.getHours()).padStart(2, '0')}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
+    const formattedTimestamp = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}_${String(timestamp.getHours()).padStart(2, '0')}-${String(timestamp.getMinutes()).padStart(2, '0')}-${String(timestamp.getSeconds()).padStart(2, '0')}`;
   
     let markdown = `# ${formattedTimestamp} Open Tabs\n\n`;
   
@@ -8,8 +8,9 @@ function generateMarkdown(tabs) {
       markdown += `## ${tab.title}\n[${tab.url}](${tab.url})\n\n`;
     }
   
-    return markdown;
+    return { markdown, formattedTimestamp };
   }
+  
   
 
 function shouldProcessTab(tab, restrictedUrls) {
@@ -26,9 +27,13 @@ chrome.browserAction.onClicked.addListener(() => {
         const currentWindow = windows.find((window) => window.focused);
         const tabs = currentWindow.tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls || []));
   
-        const markdown = generateMarkdown(tabs);
+        const { markdown, formattedTimestamp } = generateMarkdownAndTimestamp(tabs);
   
-        chrome.tabs.create({ url: 'data:text/plain;charset=UTF-8,' + encodeURIComponent(markdown) });
+        chrome.downloads.download({
+          url: 'data:text/plain;charset=UTF-8,' + encodeURIComponent(markdown),
+          filename: `${formattedTimestamp}_OpenTabs.md`,
+          saveAs: true,
+        });
       });
     });
   });

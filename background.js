@@ -9,14 +9,25 @@ function generateMarkdown(tabs) {
     return output.join('');
   }
 
+function shouldProcessTab(tab, restrictedUrls) {
+    const isPinned = tab.pinned;
+    const isSettingsTab = tab.url.startsWith('edge://');
+    const isRestrictedUrl = restrictedUrls.some((url) => tab.url.includes(url));
+  
+    return !isPinned && !isSettingsTab && !isRestrictedUrl;
+  }
+  
   chrome.browserAction.onClicked.addListener(() => {
-    chrome.windows.getAll({ populate: true, windowTypes: ['normal'] }, (windows) => {
-      const currentWindow = windows.find((window) => window.focused);
-      const tabs = currentWindow.tabs;
+    chrome.storage.sync.get('restrictedUrls', ({ restrictedUrls }) => {
+      restrictedUrls = restrictedUrls || ['gmail.com', 'google.com', 'bing.com'];
+      chrome.windows.getAll({ populate: true, windowTypes: ['normal'] }, (windows) => {
+        const currentWindow = windows.find((window) => window.focused);
+        const tabs = currentWindow.tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls));
   
-      const markdown = generateMarkdown(tabs);
+        const markdown = generateMarkdown(tabs);
   
-      chrome.tabs.create({ url: 'data:text/plain;charset=UTF-8,' + encodeURIComponent(markdown) });
+        chrome.tabs.create({ url: 'data:text/plain;charset=UTF-8,' + encodeURIComponent(markdown) });
+      });
     });
   });
   

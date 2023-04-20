@@ -1,19 +1,18 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const settingsForm = document.getElementById('settingsForm');
-    const apiKeyInput = document.getElementById('apiKey');
+document.getElementById('save').addEventListener('click', () => {
+    const restrictedUrls = document.getElementById('restrictedUrls').value.split('\n');
+    chrome.storage.sync.set({ restrictedUrls });
+  });
   
-    // Load the stored API key and display it in the input field
-    chrome.storage.sync.get('apiKey', (data) => {
-      apiKeyInput.value = data.apiKey || '';
-    });
-  
-    // Save the API key when the form is submitted
-    settingsForm.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const apiKey = apiKeyInput.value.trim();
-      chrome.storage.sync.set({ apiKey }, () => {
-        alert('API key saved.');
-      });
-    });
+  chrome.storage.sync.get('restrictedUrls', ({ restrictedUrls }) => {
+    if (restrictedUrls) {
+      document.getElementById('restrictedUrls').value = restrictedUrls.join('\n');
+    } else {
+      const defaultRestrictedUrls = [
+        'gmail.com',
+        'google.com',
+        'bing.com'
+      ];
+      document.getElementById('restrictedUrls').value = defaultRestrictedUrls.join('\n');
+    }
   });
   

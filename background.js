@@ -24,10 +24,15 @@ function generateMarkdownAndTimestamp(tabs) {
     return { markdown, formattedTimestamp };
   }
 
-function shouldProcessTab(tab, restrictedUrls) {
+  function shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs) {
     const isPinned = tab.pinned;
-    const isSettingsTab = tab.url.startsWith('edge://');
+    const isSettingsTab = tab.url.startsWith('edge://') || tab.url.startsWith('chrome://');
     const isRestrictedUrl = restrictedUrls.some((url) => tab.url.includes(url));
+    const isSelected = tab.highlighted;
+  
+    if (processOnlySelectedTabs) {
+      return isSelected && !isPinned && !isSettingsTab && !isRestrictedUrl;
+    }
   
     return !isPinned && !isSettingsTab && !isRestrictedUrl;
   }
@@ -36,7 +41,9 @@ function shouldProcessTab(tab, restrictedUrls) {
     chrome.storage.sync.get('restrictedUrls', ({ restrictedUrls }) => {
       chrome.windows.getAll({ populate: true, windowTypes: ['normal'] }, (windows) => {
         const currentWindow = windows.find((window) => window.focused);
-        const tabs = currentWindow.tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls || []));
+        const selectedTabs = currentWindow.tabs.filter((tab) => tab.highlighted);
+        const processOnlySelectedTabs = selectedTabs.length > 1;
+        const tabs = currentWindow.tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls || [], processOnlySelectedTabs));
   
         const { markdown, formattedTimestamp } = generateMarkdownAndTimestamp(tabs);
   
@@ -48,5 +55,4 @@ function shouldProcessTab(tab, restrictedUrls) {
       });
     });
   });
-  
   

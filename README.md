@@ -34,6 +34,7 @@ To install tabSidian, follow these steps:
 3. A download prompt will appear, allowing you to save the generated markdown file to your local storage.
 4. Import the markdown file into Obsidian or any other markdown-compatible application for further use.
 5. You may add more restricted URLs by right-clicking the extension icon and opening the Options page.
+6. You may customize the markdown surrounding your Title and URL to fit your Obsidian style. Examples are provided in the extension's options page.
 
 ## Tips
 
@@ -42,7 +43,7 @@ To install tabSidian, follow these steps:
 
 ## Sample Output
 
-The generated markdown file will have a format similar to the following:
+The generated markdown file will have a default format similar to the following:
 
 ![](sample-output.png)
 
@@ -60,6 +61,8 @@ The generated markdown file will have a format similar to the following:
 >## Tab Title 2
 >[https://example2.com](https://example2.com)
 >
+
+You may replace the default markdown with your own to match your workflow. Use {title} and {url} placeholders to show the tab's Title and URL. You may also use "\n" to create a new line.
 
 ## Limitations
 

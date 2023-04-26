@@ -73,9 +73,7 @@ button:hover {
   text-decoration: none;
 }
 
-.credits a:hover
-
-.default-format {
+.credits a:hover .default-format {
   font-family: "Courier New", monospace;
   font-size: 14px;
   font-weight: bold;

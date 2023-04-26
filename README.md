@@ -4,7 +4,6 @@ tabSidian is a Microsoft Edge browser extension that helps users easily generate
 
 The entire transcript with GPT-4 is here: [How I built tabSidian from scratch with GPT 4](https://github.com/cgranier/tabSidian/wiki/How-I-built-tabSidian-from-scratch-with-GPT-4)
 
-
 ## Table of Contents
 
 - [Installation](#installation)
@@ -51,20 +50,21 @@ The generated markdown file will have a default format similar to the following:
 
 ![](sample-output.png)
 
->\---
+> \---
 >
->date_created: 2023-04-11
+> date_created: 2023-04-11
 >
->time_created: 16:58:42
+> time_created: 16:58:42
 >
->\---
+> \---
 >
->## Tab Title 1
->[https://example1.com](https://example1.com)
+> ## Tab Title 1
 >
->## Tab Title 2
->[https://example2.com](https://example2.com)
+> [https://example1.com](https://example1.com)
 >
+> ## Tab Title 2
+>
+> [https://example2.com](https://example2.com)
 
 You may replace the default markdown with your own to match your workflow. Use {title} and {url} placeholders to show the tab's Title and URL. You may also use "\n" to create a new line.
 
@@ -76,10 +76,12 @@ You may replace the default markdown with your own to match your workflow. Use {
 ## Author
 
 Carlos Granier
+
 - [GitHub](https://github.com/cgranier)
 - [Twitter](https://twitter.com/cgranier)
 
 GPT-4
+
 - [GPT-4](https://chat.openai.com/)
 
 ## Built With

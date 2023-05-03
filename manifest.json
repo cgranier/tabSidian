@@ -1,20 +1,19 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "tabSidian",
-  "version": "1.5.1",
+  "version": "1.6.1",
   "description": "A browser extension to summarize open tabs into Obsidian markdown files.",
   "icons": {
     "48": "icon48.png",
     "128": "icon128.png"
   },
-  "browser_action": {
+  "action": {
     "default_icon": "icon48.png",
     "default_title": "tabSidian"
   },
   "permissions": ["tabs", "storage", "downloads"],
   "options_page": "options.html",
   "background": {
-    "scripts": ["background.js"],
-    "persistent": false
+    "service_worker": "background.js"
   }
 }

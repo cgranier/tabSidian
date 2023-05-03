@@ -57,7 +57,7 @@ function shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs) {
   return !isPinned && !isSettingsTab && !isRestrictedUrl;
 }
 
-chrome.browserAction.onClicked.addListener(() => {
+chrome.action.onClicked.addListener(() => {
   chrome.storage.sync.get(
     ["restrictedUrls", "titleFormat", "urlFormat"],
     (result) => {
@@ -69,8 +69,12 @@ chrome.browserAction.onClicked.addListener(() => {
         { populate: true, windowTypes: ["normal"] },
         (windows) => {
           const currentWindow = windows.find((window) => window.focused);
+          const selectedTabs = currentWindow.tabs.filter(
+            (tab) => tab.highlighted
+          );
+          const processOnlySelectedTabs = selectedTabs.length > 1;
           const tabs = currentWindow.tabs.filter((tab) =>
-            shouldProcessTab(tab, restrictedUrls || [])
+            shouldProcessTab(tab, restrictedUrls || [], processOnlySelectedTabs)
           );
 
           const { markdown, formattedTimestamp } = generateMarkdownAndTimestamp(

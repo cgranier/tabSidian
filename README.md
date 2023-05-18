@@ -4,6 +4,8 @@ tabSidian is a Microsoft Edge browser extension that helps users easily generate
 
 The entire transcript with GPT-4 is here: [How I built tabSidian from scratch with GPT 4](https://github.com/cgranier/tabSidian/wiki/How-I-built-tabSidian-from-scratch-with-GPT-4)
 
+Microsoft Edge Add-ons Store link: https://microsoftedge.microsoft.com/addons/detail/tabsidian/gdnfbdjmfnpnjccfbppkbpjlpnppinba
+
 ## Table of Contents
 
 - [Installation](#installation)

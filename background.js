@@ -26,6 +26,8 @@ function generateMarkdownAndTimestamp(tabs, titleFormat, urlFormat) {
 
   let markdown = `---\ndate_created: ${localDate}\ntime_created: ${localTime}\n---\n\n`;
 
+  //console.log('tabs: ' + tabs.length);
+
   for (const tab of tabs) {
     let formattedTitle = titleFormat
       .replace(/\{title\}/g, tab.title)
@@ -36,8 +38,8 @@ function generateMarkdownAndTimestamp(tabs, titleFormat, urlFormat) {
       .replace(/\{url\}/g, tab.url)
       .replace(/\\n/g, "\n");
 
-    markdown += formattedTitle + "\n";
-    markdown += formattedUrl + "\n\n";
+    markdown += formattedTitle;
+    markdown += formattedUrl;
   }
 
   return { markdown, formattedTimestamp };
@@ -50,20 +52,26 @@ function shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs) {
   const isRestrictedUrl = restrictedUrls.some((url) => tab.url.includes(url));
   const isSelected = tab.highlighted;
 
+  const process = true;
   if (processOnlySelectedTabs) {
-    return isSelected && !isPinned && !isSettingsTab && !isRestrictedUrl;
+    process = isSelected && !isPinned && !isSettingsTab && !isRestrictedUrl;
+  }
+  else {
+    process = !isPinned && !isSettingsTab && !isRestrictedUrl;
   }
 
-  return !isPinned && !isSettingsTab && !isRestrictedUrl;
+  //console.log('process: ' + process + ' isPinned: '+isPinned+' isSettings: '+isSettingsTab+' isRestricted: '+isRestrictedUrl+' URL: ' + tab.url)
+  return process;
 }
 
 chrome.action.onClicked.addListener(() => {
   chrome.storage.sync.get(
     ["restrictedUrls", "titleFormat", "urlFormat"],
     (result) => {
-      const restrictedUrls = result.restrictedUrls;
-      const titleFormat = result.titleFormat || "## {title}";
-      const urlFormat = result.urlFormat || "[{url}]({url})";
+      //important to remove empty lines
+      const restrictedUrls = result.restrictedUrls.filter((str) => str !== '');
+      const titleFormat = result.titleFormat || "## {title}\n";
+      const urlFormat = result.urlFormat || "[{url}]({url})\n\n";
 
       chrome.windows.getAll(
         { populate: true, windowTypes: ["normal"] },
@@ -76,6 +84,10 @@ chrome.action.onClicked.addListener(() => {
           const tabs = currentWindow.tabs.filter((tab) =>
             shouldProcessTab(tab, restrictedUrls || [], processOnlySelectedTabs)
           );
+
+          console.log('processing only selected tabs: ' + processOnlySelectedTabs);
+          console.log('tabs: ' + currentWindow.tabs.length);
+          console.log('tabs after filter: ' + tabs.length);
 
           const { markdown, formattedTimestamp } = generateMarkdownAndTimestamp(
             tabs,

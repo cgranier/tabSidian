@@ -29,15 +29,15 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function setDefaultRestrictedUrls() {
-  const defaultRestrictedUrls = ["gmail.com", "google.com", "bing.com"];
+  const defaultRestrictedUrls = ["mail.google.com", "outlook.live.com"];
   document.getElementById("restrictedUrls").value =
     defaultRestrictedUrls.join("\n");
   chrome.storage.sync.set({ restrictedUrls: defaultRestrictedUrls });
 }
 
 function setDefaultMarkdownFormats() {
-  const defaultTitleFormat = "## {title}";
-  const defaultUrlFormat = "[{url}]({url})";
+  const defaultTitleFormat = "## {title}\n";
+  const defaultUrlFormat = "[{url}]({url})\n\n";
 
   document.getElementById("titleFormat").value = defaultTitleFormat;
   document.getElementById("urlFormat").value = defaultUrlFormat;

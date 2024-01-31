@@ -16,33 +16,29 @@
       </div>
       <div class="section">
         <h2>Markdown Customization</h2>
-        <p>Customize the Markdown format for tab titles and URLs. Don't forget to include the <strong>{title}</strong> and <strong>{url}</strong> placeholders in the respective fields.</p>
+        <p>
+          Customize the Markdown format for tab titles and URLs. 
+          Don't forget to include the <strong>{title}</strong> and <strong>{url}</strong> placeholders, 
+          and use \n for line breaks.
+        </p>
         <label for="titleFormat">Title Format:</label>
-        <span class="default-format">Default: ## {title}</span>
+        <span class="default-format">Default: ## {title}\n</span>
         <input type="text" id="titleFormat">
         <br>
         <label for="urlFormat">URL Format:</label>
-        <span class="default-format">Default: [{url}]({url})</span>
+        <span class="default-format">Default: [{url}]({url})\n\n</span>
         <input type="text" id="urlFormat">
         <h3>Formatting Examples</h3>
         <div class="section">
           <p>
-            <strong>Example 1:</strong> <code>## {title} - [{url}]({url})</code><br />
+            <strong>Example 1:</strong> <code>## {title}\n[{url}]({url})\n\n</code><br />
             This will produce:<br />
-            <code>## Example Title - [https://example.com](https://example.com)</code>
+            <code>## Page Title<br />[https://url.com](https://url.com)</code>
           </p>
           <p>
-            <strong>Example 2:</strong> <code>* {title} ({url})</code><br />
+            <strong>Example 2:</strong> <code>- [{title}]({url})\n</code><br />
             This will produce:<br />
-            <code>* Example Title (https://example.com)</code>
-          </p>
-          <p>
-            <strong>Example 3:</strong>
-            <p>To insert a new line, use <strong>\n</strong> in the format field:</p>
-            <code>* {title}\n({url})</code><br />
-            This will produce:<br />
-            <code>* Example Title</code><br />
-            <code>(https://example.com)</code>
+            <code>- [Page Title](https://url.com)</code>
           </p>
         </div>
       </div>

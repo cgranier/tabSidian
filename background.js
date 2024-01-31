@@ -52,11 +52,10 @@ function shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs) {
   const isRestrictedUrl = restrictedUrls.some((url) => tab.url.includes(url));
   const isSelected = tab.highlighted;
 
-  const process = true;
+  // const process = true;
   if (processOnlySelectedTabs) {
     process = isSelected && !isPinned && !isSettingsTab && !isRestrictedUrl;
-  }
-  else {
+  } else {
     process = !isPinned && !isSettingsTab && !isRestrictedUrl;
   }
 
@@ -69,7 +68,7 @@ chrome.action.onClicked.addListener(() => {
     ["restrictedUrls", "titleFormat", "urlFormat"],
     (result) => {
       //important to remove empty lines
-      const restrictedUrls = result.restrictedUrls.filter((str) => str !== '');
+      const restrictedUrls = result.restrictedUrls.filter((str) => str !== "");
       const titleFormat = result.titleFormat || "## {title}\n";
       const urlFormat = result.urlFormat || "[{url}]({url})\n\n";
 
@@ -85,9 +84,11 @@ chrome.action.onClicked.addListener(() => {
             shouldProcessTab(tab, restrictedUrls || [], processOnlySelectedTabs)
           );
 
-          console.log('processing only selected tabs: ' + processOnlySelectedTabs);
-          console.log('tabs: ' + currentWindow.tabs.length);
-          console.log('tabs after filter: ' + tabs.length);
+          console.log(
+            "processing only selected tabs: " + processOnlySelectedTabs
+          );
+          console.log("tabs: " + currentWindow.tabs.length);
+          console.log("tabs after filter: " + tabs.length);
 
           const { markdown, formattedTimestamp } = generateMarkdownAndTimestamp(
             tabs,

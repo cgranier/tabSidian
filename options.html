@@ -21,13 +21,16 @@
           Don't forget to include the <strong>{title}</strong> and <strong>{url}</strong> placeholders, 
           and use \n for line breaks.
         </p>
-        <label for="titleFormat">Title Format:</label>
-        <span class="default-format">Default: ## {title}\n</span>
-        <input type="text" id="titleFormat">
+        <label for="markdownFormat">Markdown Format:</label>
+        <span class="default-format">Default: ## {title}\n[{url}]({url})\n\n</span>
+        <textarea id="markdownFormat" rows="5" cols="50"></textarea>
         <br>
-        <label for="urlFormat">URL Format:</label>
-        <span class="default-format">Default: [{url}]({url})\n\n</span>
-        <input type="text" id="urlFormat">
+        <label for="presetFormats">Preset Formats:</label>
+        <select id="presetFormats">
+          <option value="## {title}\n[{url}]({url})\n\n">Default</option>
+          <option value="- [{title}]({url})\n">List Format</option>
+          <option value="### {title}\n> {url}\n\n">Quote Format</option>
+        </select>
         <h3>Formatting Examples</h3>
         <div class="section">
           <p>

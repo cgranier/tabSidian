@@ -4,25 +4,27 @@ document.addEventListener("DOMContentLoaded", () => {
       .getElementById("restrictedUrls")
       .value.split("\n");
     chrome.storage.sync.set({ restrictedUrls });
-    const titleFormat = document.getElementById("titleFormat").value;
-    const urlFormat = document.getElementById("urlFormat").value;
-    chrome.storage.sync.set({ restrictedUrls, titleFormat, urlFormat });
+    const markdownFormat = document.getElementById("markdownFormat").value;
+    chrome.storage.sync.set({ restrictedUrls, markdownFormat });
+  });
+
+  document.getElementById("presetFormats").addEventListener("change", (event) => {
+    document.getElementById("markdownFormat").value = event.target.value;
   });
 
   chrome.storage.sync.get(
-    ["restrictedUrls", "titleFormat", "urlFormat"],
-    ({ restrictedUrls, titleFormat, urlFormat }) => {
+    ["restrictedUrls", "markdownFormat"],
+    ({ restrictedUrls, markdownFormat }) => {
       if (restrictedUrls) {
         document.getElementById("restrictedUrls").value =
           restrictedUrls.join("\n");
       } else {
         setDefaultRestrictedUrls();
       }
-      if (titleFormat && urlFormat) {
-        document.getElementById("titleFormat").value = titleFormat;
-        document.getElementById("urlFormat").value = urlFormat;
+      if (markdownFormat) {
+        document.getElementById("markdownFormat").value = markdownFormat;
       } else {
-        setDefaultMarkdownFormats();
+        setDefaultMarkdownFormat();
       }
     }
   );
@@ -35,14 +37,10 @@ function setDefaultRestrictedUrls() {
   chrome.storage.sync.set({ restrictedUrls: defaultRestrictedUrls });
 }
 
-function setDefaultMarkdownFormats() {
-  const defaultTitleFormat = "## {title}\n";
-  const defaultUrlFormat = "[{url}]({url})\n\n";
-
-  document.getElementById("titleFormat").value = defaultTitleFormat;
-  document.getElementById("urlFormat").value = defaultUrlFormat;
+function setDefaultMarkdownFormat() {
+  const defaultMarkdownFormat = "## {title}\n[{url}]({url})\n\n";
+  document.getElementById("markdownFormat").value = defaultMarkdownFormat;
   chrome.storage.sync.set({
-    titleFormat: defaultTitleFormat,
-    urlFormat: defaultUrlFormat,
+    markdownFormat: defaultMarkdownFormat,
   });
 }

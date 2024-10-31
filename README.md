@@ -28,6 +28,8 @@ To install tabSidian, follow these steps:
 5. Click on the "Load unpacked" button and select the folder containing the extracted source code.
 6. TabSidian should now be installed and visible in your extensions list.
 
+🚀 Latest version: [tabSidian 1.7.1](versions/tabSidian_1.7.1.zip)
+
 ## Usage
 
 1. Click on the tabSidian extension icon in the toolbar.

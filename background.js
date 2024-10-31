@@ -41,7 +41,10 @@ function generateMarkdownAndTimestamp(tabs, markdownFormat) {
 function shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs) {
   const isPinned = tab.pinned;
   const isSettingsTab =
-    tab.url.startsWith("edge://") || tab.url.startsWith("chrome://");
+    tab.url.startsWith("edge://") || 
+    tab.url.startsWith("chrome://") || 
+    tab.url.startsWith("chrome-extension://") || 
+    tab.url.startsWith("extension://");
   const isRestrictedUrl = restrictedUrls.some((url) => tab.url.includes(url));
   const isSelected = tab.highlighted;
 

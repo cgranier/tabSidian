@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function setDefaultRestrictedUrls() {
-  const defaultRestrictedUrls = ["mail.google.com", "outlook.live.com"];
+  const defaultRestrictedUrls = ["chrome-extension://", "extension://", "mail.google.com", "outlook.live.com"];
   document.getElementById("restrictedUrls").value =
     defaultRestrictedUrls.join("\n");
   chrome.storage.sync.set({ restrictedUrls: defaultRestrictedUrls });

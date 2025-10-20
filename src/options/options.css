@@ -61,6 +61,13 @@ button:hover {
   background-color: #555;
 }
 
+.platform-hint {
+  font-size: 14px;
+  color: #555;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
 .credits {
   font-size: 12px;
   text-align: center;
@@ -73,7 +80,11 @@ button:hover {
   text-decoration: none;
 }
 
-.credits a:hover .default-format {
+.credits a:hover {
+  text-decoration: underline;
+}
+
+.default-format {
   font-family: "Courier New", monospace;
   font-size: 14px;
   font-weight: bold;
@@ -81,5 +92,11 @@ button:hover {
   border-radius: 3px;
   padding: 5px;
   display: inline-block;
-  margin-left: 5px;
+  margin-top: 5px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #555;
+  margin-top: -5px;
 }

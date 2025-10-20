@@ -3,12 +3,13 @@
   <head>
     <title>tabSidian - Settings</title>
     <link rel="stylesheet" href="options.css" />
-    <script src="options.js"></script>
+    <script src="options.js" defer></script>
   </head>
   <body>
     <div class="container">
       <img src="icon128.png" alt="tabSidian" class="logo" />
       <h1>tabSidian - Settings</h1>
+      <p class="platform-hint" data-platform-hint hidden></p>
       <div class="section">
         <h2>Restricted URLs</h2>
         <p>
@@ -54,6 +55,33 @@
             <code>- [Tab Title 2](https://url.com)</code>
           </p>
         </div>
+      </div>
+      <br />
+      <div class="section">
+        <h2>Obsidian Export</h2>
+        <p>
+          Configure direct exports for vaults with the Advanced URI plugin installed.<br />
+          Leave both fields empty to keep using local downloads only.
+        </p>
+        <label for="obsidianVault">Vault name:</label>
+        <input
+          type="text"
+          id="obsidianVault"
+          placeholder="My Obsidian Vault"
+          autocomplete="off"
+        />
+        <br />
+        <label for="obsidianNotePath">Note path template:</label>
+        <input
+          type="text"
+          id="obsidianNotePath"
+          placeholder="tabSidian/tab-export-{timestamp}.md"
+          autocomplete="off"
+        />
+        <p class="hint">
+          <strong>{timestamp}</strong> is replaced with the export timestamp. Paths must end with
+          <strong>.md</strong> and are resolved inside your vault.
+        </p>
       </div>
       <br />
       <button id="save">Save</button>

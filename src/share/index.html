@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>tabSidian Share</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+
+      main {
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 30px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 200px;
+        font-family: monospace;
+        font-size: 14px;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+
+      .actions {
+        margin-top: 20px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        background-color: #333;
+        color: #fff;
+        padding: 10px 18px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #555;
+      }
+
+      .status {
+        margin-top: 15px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>tabSidian Share</h1>
+      <p class="status" data-status>Preparing share sheet…</p>
+      <div class="actions" hidden data-actions>
+        <button type="button" data-copy>Copy Markdown</button>
+        <button type="button" data-download>Download File</button>
+      </div>
+      <textarea data-markdown hidden readonly></textarea>
+    </main>
+    <script src="share.js" defer></script>
+  </body>
+</html>

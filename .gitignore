@@ -1,3 +1,34 @@
+# Ignore build outputs
+/dist/
+
+# Dependencies
+/node_modules/
+
+# Package manager artifacts
+yarn.lock
+pnpm-lock.yaml
+
+# IDE/editor settings
+.vscode/
+.idea/
+.DS_Store
+
+# Logs and coverage
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary caches
+.cache/
+coverage/
+
+# Test outputs
+*.tgz
+
+# Environment files
+.env*
+
+# Existing custom ignores
 .cursorrules
-.*
 repomix-output.txt

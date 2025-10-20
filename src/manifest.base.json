@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "tabSidian",
+  "version": "1.8.0",
+  "description": "A browser extension to summarize open tabs into Obsidian markdown files.",
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_icon": "icon48.png",
+    "default_title": "tabSidian"
+  },
+  "permissions": ["tabs", "activeTab", "storage", "notifications"],
+  "optional_permissions": [],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["share.html", "share.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

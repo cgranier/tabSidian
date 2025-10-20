@@ -30,7 +30,7 @@ Manual installation remains supported for development or side-loading builds:
 2. Run `npm run build:<browser>` (see [Build Targets](#build-targets)).
 3. Load the generated `dist/<browser>` folder as an unpacked extension for your browser (e.g., `chrome://extensions`, `edge://extensions`, `about:debugging#/runtime/this-firefox`).
 
-Latest packaged release: [tabSidian 1.8.1](versions/tabSidian_1.8.1.zip)
+Latest packaged release: [tabSidian 1.8.2](versions/tabSidian_1.8.2.zip)
 
 ## Usage
 
@@ -42,6 +42,8 @@ Latest packaged release: [tabSidian 1.8.1](versions/tabSidian_1.8.1.zip)
 ### Template customization
 
 The options page now ships with a sandboxed Mustache renderer. Templates can reference:
+
+- All settings auto-save as you edit within the General, Properties, Templates, and Restricted URLs panels; each panel also has its own “Reset” button plus a global reset.
 
 - `{{{frontmatter}}}`, `{{export.iso}}`, `{{export.filename}}`, and `{{export.tabCount}}` for export metadata.
 - Frontmatter keys are configurable in the options UI; the active names are exposed via `{{frontmatterFields.date}}`, `{{frontmatterFields.time}}`, `{{frontmatterFields.exportedAt}}`, `{{frontmatterFields.tabCount}}`, `{{frontmatterFields.windowTitle}}`, and `{{frontmatterFields.windowIncognito}}`.
@@ -116,7 +118,7 @@ Follow the steps below after running the relevant `npm run build:<browser>` comm
 
 - Use `dist/safari` as the WebExtension payload when creating a Safari Web Extension App in Xcode.
 - In Xcode, enable the `Share` entitlement if you rely on the Share Sheet fallback.
-- Increment the Xcode project version alongside the manifest version (`1.8.1`) before archiving.
+- Increment the Xcode project version alongside the manifest version (`1.8.2`) before archiving.
 - Export a signed `.pkg` or submit directly to App Store Connect for notarisation and distribution.
 
 ## Tips & Limitations

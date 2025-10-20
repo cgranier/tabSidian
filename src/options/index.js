@@ -48,6 +48,9 @@ const BUILT_IN_PRESETS = [
 
 const elements = {
   restrictedUrls: () => document.getElementById("restrictedUrls"),
+  restrictedImport: () => document.getElementById("restrictedImport"),
+  restrictedExport: () => document.getElementById("restrictedExport"),
+  restrictedImportInput: () => document.getElementById("restrictedImportInput"),
   markdownFormat: () => document.getElementById("markdownFormat"),
   presetFormats: () => document.getElementById("presetFormats"),
   presetName: () => document.getElementById("presetName"),
@@ -61,15 +64,30 @@ const elements = {
   exportPresets: () => document.getElementById("exportPresets"),
   templatePreview: () => document.querySelector("[data-template-preview]"),
   templateFeedback: () => document.querySelector("[data-template-feedback]"),
-  templateStatus: () => document.querySelector("[data-template-status]"),
   templateDocs: () => document.querySelector("[data-template-docs]"),
+  statusMessage: () => document.querySelector("[data-status-message]"),
   frontmatterInputs: () => document.querySelectorAll("[data-frontmatter-field]"),
   frontmatterFeedback: () => document.querySelector("[data-frontmatter-feedback]"),
-  save: () => document.getElementById("save"),
+  resetGeneral: () => document.getElementById("resetGeneral"),
+  resetProperties: () => document.getElementById("resetProperties"),
+  resetTemplates: () => document.getElementById("resetTemplates"),
+  resetRestricted: () => document.getElementById("resetRestricted"),
+  resetAll: () => document.getElementById("resetAll"),
   platformHint: () => document.querySelector("[data-platform-hint]"),
   obsidianVault: () => document.getElementById("obsidianVault"),
   obsidianNotePath: () => document.getElementById("obsidianNotePath")
 };
+
+const LEGACY_DEFAULT_RESTRICTED_URLS = [
+  "chrome-extension://",
+  "extension://",
+  "moz-extension://",
+  "safari-web-extension://",
+  "edge://",
+  "chrome://",
+  "mail.google.com",
+  "outlook.live.com"
+];
 
 const state = {
   customPresets: [],
@@ -84,7 +102,8 @@ const state = {
   frontmatterValidation: {
     hasErrors: false,
     messages: []
-  }
+  },
+  preferencesReady: false
 };
 
 function createCustomPresetId() {
@@ -121,6 +140,22 @@ function toMultilineValue(values) {
 
 function parseMultiline(value) {
   return sanitizeRestrictedUrls(value.split("\n").map((entry) => entry.trim()));
+}
+
+function debounce(fn, delay = 300) {
+  let timeoutId;
+  const debounced = (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      timeoutId = undefined;
+      fn(...args);
+    }, delay);
+  };
+  debounced.cancel = () => {
+    clearTimeout(timeoutId);
+    timeoutId = undefined;
+  };
+  return debounced;
 }
 
 const FRONTMATTER_FIELD_KEYS = /** @type {Array<keyof typeof DEFAULT_FRONTMATTER_FIELDS>} */ (
@@ -220,6 +255,39 @@ function updateFrontmatterFeedback() {
   }
 }
 
+const scheduleSave = debounce(() => {
+  savePreferences().catch((error) => {
+    console.error("Failed to persist preferences", error);
+    setStatusMessage("Unable to save preferences. Check the console for details.", "error");
+  });
+}, 600);
+
+function queueSave(options = {}) {
+  const { silent = false } = options;
+  if (!state.preferencesReady) {
+    return;
+  }
+
+  if (state.frontmatterValidation.hasErrors) {
+    scheduleSave.cancel();
+    if (!silent) {
+      setStatusMessage("Resolve frontmatter field errors before saving.", "error");
+    }
+    return;
+  }
+
+  if (state.diagnostics.errors.length > 0) {
+    scheduleSave.cancel();
+    if (!silent) {
+      setStatusMessage("Resolve template errors before saving.", "error");
+    }
+    return;
+  }
+
+  setStatusMessage("Saving changes…", "saving");
+  scheduleSave();
+}
+
 function updateFrontmatterState() {
   const result = validateFrontmatterInputs();
   state.frontmatterValidation = {
@@ -230,6 +298,11 @@ function updateFrontmatterState() {
     state.frontmatterFields = result.normalized;
   }
   updateFrontmatterFeedback();
+  if (state.frontmatterValidation.hasErrors) {
+    scheduleSave.cancel();
+  } else {
+    queueSave({ silent: true });
+  }
   updateTemplatePreview();
 }
 
@@ -346,23 +419,29 @@ function findPresetMatchingTemplate(template) {
   return getAllPresets().find((preset) => preset.template === template) ?? null;
 }
 
-function setTemplateStatus(message, type = "info") {
-  const statusElement = elements.templateStatus();
-  if (!statusElement) {
+function setStatusMessage(message, type = "info") {
+  const banner = elements.statusMessage();
+  if (!banner) {
     return;
   }
 
-  statusElement.textContent = message;
-  statusElement.classList.remove("is-success", "is-error");
+  banner.textContent = message;
+  banner.classList.remove("is-visible", "is-saving", "is-success", "is-error", "is-warning");
 
   if (!message) {
     return;
   }
 
+  banner.classList.add("is-visible");
+
   if (type === "success") {
-    statusElement.classList.add("is-success");
+    banner.classList.add("is-success");
   } else if (type === "error") {
-    statusElement.classList.add("is-error");
+    banner.classList.add("is-error");
+  } else if (type === "warning") {
+    banner.classList.add("is-warning");
+  } else if (type === "saving") {
+    banner.classList.add("is-saving");
   }
 }
 
@@ -485,7 +564,6 @@ function updatePresetButtons() {
   const savePresetButton = elements.savePreset();
   const deletePresetButton = elements.deletePreset();
   const presetNameInput = elements.presetName();
-  const saveButton = elements.save();
 
   const hasName = presetNameInput.value.trim().length > 0;
   const hasErrors = state.diagnostics.errors.length > 0;
@@ -503,10 +581,6 @@ function updatePresetButtons() {
     deletePresetButton.disabled =
       !state.selectedPresetId.startsWith("custom:") ||
       !state.customPresets.some((preset) => preset.id === state.selectedPresetId);
-  }
-
-  if (saveButton) {
-    saveButton.disabled = hasErrors || hasFrontmatterErrors;
   }
 }
 
@@ -534,7 +608,7 @@ function applySelectedPreset() {
 
   elements.markdownFormat().value = preset.template;
   state.selectedPresetId = preset.id;
-  setTemplateStatus(`Loaded preset "${preset.name}".`);
+  setStatusMessage(`Loaded preset "${preset.name}".`, "success");
   updateTemplatePreview();
   refreshPresetPicker(preset.id);
 
@@ -542,12 +616,14 @@ function applySelectedPreset() {
   if (presetNameInput) {
     presetNameInput.value = preset.name;
   }
+
+  queueSave();
 }
 
 function resetTemplateToDefault() {
   elements.markdownFormat().value = DEFAULT_MARKDOWN_FORMAT;
   state.selectedPresetId = "builtin:default";
-  setTemplateStatus("Template reset to the default layout.");
+  setStatusMessage("Template reset to the default layout.", "success");
   updateTemplatePreview();
   refreshPresetPicker(state.selectedPresetId);
 
@@ -555,6 +631,8 @@ function resetTemplateToDefault() {
   if (presetNameInput) {
     presetNameInput.value = "";
   }
+
+  queueSave();
 }
 
 async function persistCustomPresets() {
@@ -568,12 +646,12 @@ async function saveCustomPreset() {
   const name = nameInput.value.trim();
   if (!name) {
     nameInput.focus();
-    setTemplateStatus("Enter a preset name before saving.", "error");
+    setStatusMessage("Enter a preset name before saving.", "error");
     return;
   }
 
   if (state.diagnostics.errors.length > 0) {
-    setTemplateStatus("Resolve template errors before saving the preset.", "error");
+    setStatusMessage("Resolve template errors before saving the preset.", "error");
     return;
   }
 
@@ -590,7 +668,8 @@ async function saveCustomPreset() {
       };
       await persistCustomPresets();
       refreshPresetPicker(activeId);
-      setTemplateStatus("Preset updated.", "success");
+      setStatusMessage("Preset updated.", "success");
+      queueSave();
       return;
     }
   }
@@ -608,7 +687,8 @@ async function saveCustomPreset() {
     state.selectedPresetId = state.customPresets[nameMatchIndex].id;
     await persistCustomPresets();
     refreshPresetPicker(state.selectedPresetId);
-    setTemplateStatus("Preset updated.", "success");
+    setStatusMessage("Preset updated.", "success");
+    queueSave();
     return;
   }
 
@@ -623,7 +703,8 @@ async function saveCustomPreset() {
   state.selectedPresetId = newPreset.id;
   await persistCustomPresets();
   refreshPresetPicker(newPreset.id);
-  setTemplateStatus("Preset saved.", "success");
+  setStatusMessage("Preset saved.", "success");
+  queueSave();
 }
 
 async function deleteCurrentPreset() {
@@ -644,7 +725,8 @@ async function deleteCurrentPreset() {
   if (presetNameInput) {
     presetNameInput.value = "";
   }
-  setTemplateStatus("Preset removed.", "success");
+  setStatusMessage("Preset removed.", "success");
+  queueSave();
 }
 
 async function importCustomPresetsFromFileList(fileList) {
@@ -696,18 +778,19 @@ async function importCustomPresetsFromFileList(fileList) {
   if (imported > 0) {
     await persistCustomPresets();
     refreshPresetPicker();
-    setTemplateStatus(
+    setStatusMessage(
       `${imported} preset${imported === 1 ? "" : "s"} imported${skipped ? `, ${skipped} skipped.` : "."}`,
       "success"
     );
+    queueSave();
   } else {
-    setTemplateStatus("No presets were imported. Check the file format and try again.", "error");
+    setStatusMessage("No presets were imported. Check the file format and try again.", "error");
   }
 }
 
 function exportCustomPresets() {
   if (!state.customPresets.length) {
-    setTemplateStatus("There are no custom presets to export yet.", "error");
+    setStatusMessage("There are no custom presets to export yet.", "error");
     return;
   }
 
@@ -730,7 +813,126 @@ function exportCustomPresets() {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 
-  setTemplateStatus("Custom presets exported.", "success");
+  setStatusMessage("Custom presets exported.", "success");
+}
+
+async function importRestrictedUrlsFromFileList(fileList) {
+  if (!fileList || fileList.length === 0) {
+    return;
+  }
+
+  const [file] = fileList;
+  if (!file) {
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    let entries;
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        entries = parsed.map((value) => String(value));
+      } else if (parsed && Array.isArray(parsed.restrictedUrls)) {
+        entries = parsed.restrictedUrls.map((value) => String(value));
+      }
+    } catch (error) {
+      // ignore, fallback to newline parsing
+    }
+
+    if (!entries) {
+      entries = text
+        .split(/\r?\n/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+
+    const sanitized = sanitizeRestrictedUrls(entries);
+    elements.restrictedUrls().value = toMultilineValue(sanitized);
+    setStatusMessage(`Imported ${sanitized.length} restricted entr${sanitized.length === 1 ? "y" : "ies"}.`, "success");
+    queueSave();
+  } catch (error) {
+    console.error("Failed to import restricted URLs", error);
+    setStatusMessage("Failed to import restricted URLs. See console for details.", "error");
+  }
+}
+
+function exportRestrictedUrls() {
+  const entries = parseMultiline(elements.restrictedUrls().value);
+  if (entries.length === 0) {
+    setStatusMessage("Restricted list is empty.", "error");
+    return;
+  }
+
+  const blob = new Blob([entries.join("\n")], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "tabsidian-restricted-urls.txt";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  setStatusMessage("Restricted URLs exported.", "success");
+}
+
+function resetAllPreferences() {
+  resetGeneralPreferences({ silent: true });
+  resetPropertyPreferences({ silent: true });
+  resetTemplatePreferences({ silent: true });
+  resetRestrictedPreferences({ silent: true });
+  queueSave();
+  setStatusMessage("All settings restored to defaults.", "success");
+}
+
+function resetGeneralPreferences(options = {}) {
+  const { silent = false } = options;
+  elements.obsidianVault().value = "";
+  elements.obsidianNotePath().value = DEFAULT_OBSIDIAN_NOTE_PATH;
+  resetValidity(elements.obsidianVault(), elements.obsidianNotePath());
+  if (!silent) {
+    setStatusMessage("General settings reset.", "success");
+  }
+  queueSave({ silent });
+}
+
+function resetPropertyPreferences(options = {}) {
+  const { silent = false } = options;
+  setFrontmatterInputs(DEFAULT_FRONTMATTER_FIELDS);
+  state.frontmatterFields = { ...DEFAULT_FRONTMATTER_FIELDS };
+  state.frontmatterValidation = { hasErrors: false, messages: [] };
+  updateTemplatePreview();
+  if (!silent) {
+    setStatusMessage("Properties reset.", "success");
+  }
+  queueSave({ silent });
+}
+
+function resetTemplatePreferences(options = {}) {
+  const { silent = false } = options;
+  elements.markdownFormat().value = DEFAULT_MARKDOWN_FORMAT;
+  state.customPresets = [];
+  state.selectedPresetId = "builtin:default";
+  persistCustomPresets().catch((error) => {
+    console.error("Failed to clear presets during reset", error);
+  });
+  refreshPresetPicker(state.selectedPresetId);
+  updateTemplatePreview();
+  if (!silent) {
+    setStatusMessage("Templates reset.", "success");
+  }
+  queueSave({ silent });
+}
+
+function resetRestrictedPreferences(options = {}) {
+  const { silent = false } = options;
+  elements.restrictedUrls().value = toMultilineValue(DEFAULT_RESTRICTED_URLS);
+  if (!silent) {
+    setStatusMessage("Restricted URLs reset.", "success");
+  }
+  queueSave({ silent });
 }
 
 async function loadPreferences() {
@@ -743,10 +945,17 @@ async function loadPreferences() {
     PRESET_STORAGE_KEY
   ]);
 
+  const storedRestrictedRaw = Array.isArray(stored.restrictedUrls)
+    ? sanitizeRestrictedUrls(stored.restrictedUrls)
+    : [];
+
+  const legacyMatch =
+    JSON.stringify(storedRestrictedRaw) === JSON.stringify(LEGACY_DEFAULT_RESTRICTED_URLS);
+
   const restrictedUrls =
-    Array.isArray(stored.restrictedUrls) && stored.restrictedUrls.length
-      ? stored.restrictedUrls
-      : DEFAULT_RESTRICTED_URLS;
+    storedRestrictedRaw.length === 0 || legacyMatch
+      ? DEFAULT_RESTRICTED_URLS
+      : storedRestrictedRaw;
 
   const markdownFormat =
     typeof stored.markdownFormat === "string" && stored.markdownFormat.trim().length > 0
@@ -781,8 +990,13 @@ async function loadPreferences() {
     }
   }
 
+  state.preferencesReady = true;
   updateTemplatePreview();
-  setTemplateStatus("");
+  setStatusMessage("");
+
+  if (legacyMatch || storedRestrictedRaw.length === 0) {
+    queueSave({ silent: true });
+  }
 }
 
 async function savePreferences() {
@@ -790,16 +1004,8 @@ async function savePreferences() {
   const markdownFormat = elements.markdownFormat().value || DEFAULT_MARKDOWN_FORMAT;
   const obsidianPreferences = validateObsidianPreferences();
   if (!obsidianPreferences) {
-    return;
-  }
-  if (state.frontmatterValidation.hasErrors) {
-    elements.frontmatterInputs().forEach((input) => {
-      if (input instanceof HTMLInputElement) {
-        input.reportValidity();
-      }
-    });
-    updateFrontmatterFeedback();
-    setTemplateStatus("Resolve frontmatter field errors before saving.", "error");
+    setStatusMessage("Fix vault and note path before saving.", "error");
+    scheduleSave.cancel();
     return;
   }
 
@@ -812,21 +1018,15 @@ async function savePreferences() {
     [PRESET_STORAGE_KEY]: state.customPresets
   });
 
-  setTemplateStatus("Preferences saved.", "success");
+  setStatusMessage("Changes saved.", "success");
 }
 
 function attachEvents() {
-  elements.save().addEventListener("click", () => {
-    savePreferences().catch((error) => {
-      console.error("Failed to persist preferences", error);
-      setTemplateStatus("Unable to save preferences. Check the console for details.", "error");
-    });
-  });
-
   elements.markdownFormat().addEventListener("input", () => {
     state.selectedPresetId = CURRENT_TEMPLATE_OPTION_ID;
     updateTemplatePreview();
     refreshPresetPicker();
+    queueSave({ silent: true });
   });
 
   elements.frontmatterInputs().forEach((input) => {
@@ -845,7 +1045,6 @@ function attachEvents() {
   const presetNameInput = elements.presetName();
   if (presetNameInput) {
     presetNameInput.addEventListener("input", () => {
-      setTemplateStatus("");
       updatePresetButtons();
     });
   }
@@ -868,14 +1067,14 @@ function attachEvents() {
   elements.savePreset().addEventListener("click", () => {
     saveCustomPreset().catch((error) => {
       console.error("Failed to save preset", error);
-      setTemplateStatus("Unable to save the preset. See console for details.", "error");
+      setStatusMessage("Unable to save the preset. See console for details.", "error");
     });
   });
 
   elements.deletePreset().addEventListener("click", () => {
     deleteCurrentPreset().catch((error) => {
       console.error("Failed to remove preset", error);
-      setTemplateStatus("Unable to remove the preset. See console for details.", "error");
+      setStatusMessage("Unable to remove the preset. See console for details.", "error");
     });
   });
 
@@ -893,7 +1092,7 @@ function attachEvents() {
       const { files } = event.target;
       importCustomPresetsFromFileList(files).catch((error) => {
         console.error("Preset import failed", error);
-        setTemplateStatus("Preset import failed. See console for details.", "error");
+        setStatusMessage("Preset import failed. See console for details.", "error");
       });
     });
   }
@@ -901,6 +1100,99 @@ function attachEvents() {
   elements.exportPresets().addEventListener("click", () => {
     exportCustomPresets();
   });
+
+  const vaultInput = elements.obsidianVault();
+  if (vaultInput) {
+    vaultInput.addEventListener("input", () => {
+      resetValidity(vaultInput);
+    });
+    vaultInput.addEventListener("blur", () => {
+      const preferences = validateObsidianPreferences();
+      if (preferences) {
+        queueSave();
+      }
+    });
+  }
+
+  const notePathInput = elements.obsidianNotePath();
+  if (notePathInput) {
+    notePathInput.addEventListener("input", () => {
+      resetValidity(notePathInput);
+    });
+    notePathInput.addEventListener("blur", () => {
+      const preferences = validateObsidianPreferences();
+      if (preferences) {
+        queueSave();
+      }
+    });
+  }
+
+  elements.restrictedUrls().addEventListener("input", () => {
+    queueSave({ silent: true });
+  });
+
+  const generalReset = elements.resetGeneral();
+  if (generalReset) {
+    generalReset.addEventListener("click", () => {
+      resetGeneralPreferences();
+    });
+  }
+
+  const propertyReset = elements.resetProperties();
+  if (propertyReset) {
+    propertyReset.addEventListener("click", () => {
+      resetPropertyPreferences();
+    });
+  }
+
+  const templateReset = elements.resetTemplates();
+  if (templateReset) {
+    templateReset.addEventListener("click", () => {
+      resetTemplatePreferences();
+    });
+  }
+
+  const restrictedReset = elements.resetRestricted();
+  if (restrictedReset) {
+    restrictedReset.addEventListener("click", () => {
+      resetRestrictedPreferences();
+    });
+  }
+
+  const resetAllButton = elements.resetAll();
+  if (resetAllButton) {
+    resetAllButton.addEventListener("click", () => {
+      resetAllPreferences();
+    });
+  }
+
+  const restrictedImportButton = elements.restrictedImport();
+  if (restrictedImportButton) {
+    restrictedImportButton.addEventListener("click", () => {
+      const input = elements.restrictedImportInput();
+      if (input) {
+        input.value = "";
+        input.click();
+      }
+    });
+  }
+
+  const restrictedImportInput = elements.restrictedImportInput();
+  if (restrictedImportInput) {
+    restrictedImportInput.addEventListener("change", (event) => {
+      importRestrictedUrlsFromFileList(event.target.files).catch((error) => {
+        console.error("Restricted URL import failed", error);
+        setStatusMessage("Restricted URL import failed. See console for details.", "error");
+      });
+    });
+  }
+
+  const restrictedExportButton = elements.restrictedExport();
+  if (restrictedExportButton) {
+    restrictedExportButton.addEventListener("click", () => {
+      exportRestrictedUrls();
+    });
+  }
 }
 
 function renderPlatformHint() {
@@ -925,6 +1217,6 @@ document.addEventListener("DOMContentLoaded", () => {
   renderPlatformHint();
   loadPreferences().catch((error) => {
     console.error("Unable to load stored preferences", error);
-    setTemplateStatus("Unable to load stored preferences.", "error");
+    setStatusMessage("Unable to load stored preferences.", "error");
   });
 });

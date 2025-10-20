@@ -7,10 +7,13 @@ import {
 import { deliverMarkdownFile } from "../platform/download.js";
 import { formatTabsMarkdown } from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, shouldProcessTab } from "../platform/tabFilters.js";
+import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
 
 const OBSIDIAN_NEW_SCHEME = "obsidian://new";
 const NOTIFICATION_ICON = "icon128.png";
-const MAX_OBSIDIAN_URI_LENGTH = 60000;
+// Windows and macOS custom protocol handlers begin rejecting requests above ~20k characters.
+// Firefox tolerates larger URIs, so it keeps the previous ~60k ceiling; Chromium-based builds use ~18k.
+const MAX_OBSIDIAN_URI_LENGTH = IS_FIREFOX ? 60000 : 18000;
 
 function sanitizeText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -122,6 +125,16 @@ async function navigateObsidianProtocol(url) {
       active: true
     });
 
+    if (createdTab?.id) {
+      setTimeout(() => {
+        browser.tabs
+          .remove(createdTab.id)
+          .catch(() => {
+            // tab may already be gone; ignore cleanup failures
+          });
+      }, 750);
+    }
+
     emitMetric("obsidian_export_navigation", { transport: "new_tab" });
     return { success: true, transport: "new_tab" };
   } catch (error) {
@@ -189,25 +202,74 @@ function isRestrictedClipboardUrl(url) {
   return /^(chrome|edge|about):/.test(url);
 }
 
+async function writeClipboardFromExtension(text) {
+  if (!navigator?.clipboard?.writeText) {
+    return { success: false, reason: "background_clipboard_unavailable" };
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    return { success: true, method: "background_clipboard" };
+  } catch (error) {
+    console.error("tabSidian background clipboard write failed", error);
+    return {
+      success: false,
+      reason: "background_clipboard_failed",
+      message: error?.message ?? String(error)
+    };
+  }
+}
+
 async function copyMarkdownToClipboard(markdown, activeTab) {
   if (!activeTab?.id) {
     return { success: false, reason: "no_active_tab" };
   }
 
-  if (isRestrictedClipboardUrl(activeTab.url)) {
-    emitMetric("obsidian_clipboard_copy_skipped", { reason: "restricted_url" });
-    return { success: false, reason: "restricted_url" };
+  const activeTabRestricted = isRestrictedClipboardUrl(activeTab.url);
+  if (activeTabRestricted) {
+    const backgroundResult = await writeClipboardFromExtension(markdown);
+    if (backgroundResult.success) {
+      return { ...backgroundResult, restrictedActiveTab: true };
+    }
+    emitMetric("obsidian_clipboard_copy_skipped", {
+      reason: "restricted_url",
+      fallback: backgroundResult.reason
+    });
+    return { ...backgroundResult, restrictedActiveTab: true };
+  }
+
+  const preferNavigatorClipboard = !IS_CHROMIUM;
+
+  async function attemptInjection(useNavigator) {
+    const [result] = await browser.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: clipboardInjectionExecutor,
+      args: [markdown, useNavigator]
+    });
+    return result?.result ?? result;
   }
 
   if (browser?.scripting?.executeScript) {
     try {
-      const [result] = await browser.scripting.executeScript({
-        target: { tabId: activeTab.id },
-        func: clipboardInjectionExecutor,
-        args: [markdown, true]
-      });
+      let payload = await attemptInjection(preferNavigatorClipboard);
+      if (!payload?.success) {
+        if (preferNavigatorClipboard) {
+          const retryPayload = await attemptInjection(false);
+          if (retryPayload?.success) {
+            return retryPayload;
+          }
+          payload = retryPayload ?? payload;
+        }
 
-      const payload = result?.result ?? result;
+        const backgroundResult = await writeClipboardFromExtension(markdown);
+        if (backgroundResult.success) {
+          return backgroundResult;
+        }
+
+        if (!preferNavigatorClipboard) {
+          payload = await attemptInjection(true);
+        }
+      }
       if (payload?.success) {
         return { success: true, method: payload.method ?? "unknown" };
       }
@@ -225,9 +287,31 @@ async function copyMarkdownToClipboard(markdown, activeTab) {
 
   if (browser?.tabs?.executeScript) {
     try {
-      const injection = `(${clipboardInjectionExecutor.toString()})(${JSON.stringify(markdown)}, false);`;
-      const results = await browser.tabs.executeScript(activeTab.id, { code: injection });
-      const payload = Array.isArray(results) ? results[0] : results;
+      async function legacyAttempt(useNavigator) {
+        const injection = `(${clipboardInjectionExecutor.toString()})(${JSON.stringify(markdown)}, ${useNavigator});`;
+        const results = await browser.tabs.executeScript(activeTab.id, { code: injection });
+        return Array.isArray(results) ? results[0] : results;
+      }
+
+      let payload = await legacyAttempt(preferNavigatorClipboard);
+      if (!payload?.success) {
+        if (preferNavigatorClipboard) {
+          const retryPayload = await legacyAttempt(false);
+          if (retryPayload?.success) {
+            return retryPayload;
+          }
+          payload = retryPayload ?? payload;
+        }
+
+        const backgroundResult = await writeClipboardFromExtension(markdown);
+        if (backgroundResult.success) {
+          return backgroundResult;
+        }
+
+        if (!preferNavigatorClipboard) {
+          payload = await legacyAttempt(true);
+        }
+      }
 
       if (payload?.success) {
         return { success: true, method: payload.method ?? "unknown" };
@@ -311,10 +395,19 @@ async function resolveUserPreferences() {
 async function getActiveWindowTabs() {
   const windows = await browser.windows.getAll({ populate: true, windowTypes: ["normal"] });
   if (!windows || windows.length === 0) {
-    return [];
+    return { window: null, tabs: [] };
   }
   const focused = windows.find((windowItem) => windowItem.focused) ?? windows[0];
-  return focused.tabs ?? [];
+  const windowMeta = {
+    id: typeof focused.id === "number" ? focused.id : null,
+    title: typeof focused.title === "string" ? focused.title : "",
+    focused: Boolean(focused.focused),
+    incognito: Boolean(focused.incognito)
+  };
+  return {
+    window: windowMeta,
+    tabs: focused.tabs ?? []
+  };
 }
 
 function selectTabs(tabs, restrictedUrls) {
@@ -335,6 +428,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
 
   const activeTab = await getActiveTab();
   const clipboardResult = await copyMarkdownToClipboard(markdown, activeTab);
+  const restrictedActiveTab = clipboardResult.restrictedActiveTab === true;
 
   emitMetric("obsidian_clipboard_copy", {
     status: clipboardResult.success ? "success" : "failed",
@@ -348,6 +442,14 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
     overwrite: true
   };
 
+  if (restrictedActiveTab) {
+    await notifyUser(
+      "tabSidian can’t run on this page",
+      "Browser system pages (edge://, chrome://, about:) don’t allow Obsidian exports. Switch back to an http or https tab and try again."
+    );
+    return { attempted: true, success: false, reason: "restricted_active_tab" };
+  }
+
   let urlInfo;
   if (clipboardResult.success) {
     const combinedUrl = buildObsidianUrl({
@@ -359,6 +461,17 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
     if (combinedUrl.totalLength <= MAX_OBSIDIAN_URI_LENGTH) {
       urlInfo = combinedUrl;
     } else {
+      emitMetric("obsidian_export_content_omitted", {
+        reason: "uri_too_long",
+        length: combinedUrl.totalLength,
+        threshold: MAX_OBSIDIAN_URI_LENGTH,
+        notePath: resolvedNotePath
+      });
+      await notifyUser(
+        "tabSidian export trimmed for Obsidian",
+        "The tab list was copied to your clipboard and the note was created via Obsidian’s clipboard import. If the new note opens empty, paste (Ctrl+V) to insert the captured tabs."
+      );
+
       urlInfo = buildObsidianUrl({
         ...baseParams,
         clipboard: true
@@ -371,7 +484,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
     });
   }
 
-  if (!clipboardResult.success && urlInfo.totalLength > MAX_OBSIDIAN_URI_LENGTH) {
+  if (!restrictedActiveTab && !clipboardResult.success && urlInfo.totalLength > MAX_OBSIDIAN_URI_LENGTH) {
     emitMetric("obsidian_export_skipped", {
       reason: "url_too_long",
       length: urlInfo.totalLength,
@@ -380,13 +493,16 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
     return { attempted: true, success: false, reason: "url_too_long" };
   }
 
-  const updateResult = await updateActiveTab(urlInfo.url, activeTab);
-  if (updateResult.success) {
-    emitMetric("obsidian_export_success", {
-      notePath: resolvedNotePath,
-      transport: updateResult.transport ?? "tab_update"
-    });
-    return { attempted: true, success: true, transport: updateResult.transport ?? "tab_update" };
+  let updateResult = { success: false, reason: restrictedActiveTab ? "restricted_active_tab" : undefined };
+  if (!restrictedActiveTab) {
+    updateResult = await updateActiveTab(urlInfo.url, activeTab);
+    if (updateResult.success) {
+      emitMetric("obsidian_export_success", {
+        notePath: resolvedNotePath,
+        transport: updateResult.transport ?? "tab_update"
+      });
+      return { attempted: true, success: true, transport: updateResult.transport ?? "tab_update" };
+    }
   }
 
   const navigationResult = await navigateObsidianProtocol(urlInfo.url);
@@ -404,6 +520,14 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
   });
   console.error("tabSidian Obsidian navigation failed", navigationResult.reason ?? updateResult.reason);
 
+  if (restrictedActiveTab) {
+    await notifyUser(
+      "tabSidian export blocked",
+      "Browser system pages (like edge://extensions) do not allow launching Obsidian. Switch back to a regular webpage and try again."
+    );
+    return { attempted: true, success: false, reason: "restricted_active_tab" };
+  }
+
   const detailMessage =
     navigationResult.reason === "no_tabs_api" || updateResult.reason === "no_tabs_api"
       ? "This browser disallowed opening Obsidian via the Advanced URI handler. A Markdown download will be offered instead."
@@ -419,18 +543,23 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
 
 async function handleClick() {
   const { restrictedUrls, markdownFormat, obsidian } = await resolveUserPreferences();
-  const tabs = await getActiveWindowTabs();
+  const { window: activeWindow, tabs } = await getActiveWindowTabs();
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
   if (tabsToProcess.length === 0) {
     return;
   }
 
-  const { markdown, formattedTimestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat);
+  const { markdown, formattedTimestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
+    window: activeWindow ?? undefined
+  });
   const filename = `${formattedTimestamp}_OpenTabs.md`;
 
   const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, obsidian });
   if (obsidianResult.success) {
+    return;
+  }
+  if (obsidianResult.reason === "restricted_active_tab") {
     return;
   }
 

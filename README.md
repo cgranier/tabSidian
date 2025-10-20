@@ -30,7 +30,7 @@ Manual installation remains supported for development or side-loading builds:
 2. Run `npm run build:<browser>` (see [Build Targets](#build-targets)).
 3. Load the generated `dist/<browser>` folder as an unpacked extension for your browser (e.g., `chrome://extensions`, `edge://extensions`, `about:debugging#/runtime/this-firefox`).
 
-Latest packaged release: [tabSidian 1.8.0](versions/tabSidian_1.8.0.zip)
+Latest packaged release: [tabSidian 1.8.1](versions/tabSidian_1.8.1.zip)
 
 ## Usage
 
@@ -38,6 +38,18 @@ Latest packaged release: [tabSidian 1.8.0](versions/tabSidian_1.8.0.zip)
 2. The extension reads the active window, filters restricted or pinned tabs, and formats each one using your Markdown template.
 3. Chromium/Firefox trigger a download prompt. Safari opens the Share Sheet and falls back to copy/download helpers if sharing is cancelled.
 4. Manage restricted URLs and Markdown presets from the extension options page.
+
+### Template customization
+
+The options page now ships with a sandboxed Mustache renderer. Templates can reference:
+
+- `{{{frontmatter}}}`, `{{export.iso}}`, `{{export.filename}}`, and `{{export.tabCount}}` for export metadata.
+- `{{window.title}}`, `{{window.id}}`, `{{window.focused}}`, and `{{window.incognito}}` for window context.
+- Inside `{{#tabs}}...{{/tabs}}`, use `{{title}}`, `{{url}}`, `{{hostname}}`, `{{origin}}`, `{{protocol}}`, `{{pathname}}`, `{{search}}`, and `{{hash}}`.
+- Each tab exposes booleans such as `{{active}}`, `{{highlighted}}`, `{{pinned}}`, `{{audible}}`, `{{muted}}`, `{{discarded}}`, and `{{incognito}}`, plus `{{favicon}}` and positional helpers `{{index}}` / `{{position}}`.
+- Timestamp helpers live under `{{timestamps.lastAccessed}}` (ISO) and `{{timestamps.lastAccessedRelative}}` (human friendly).
+
+Use sections (`{{#favicon}}...{{/favicon}}`) to conditionally render details, and inverted sections (`{{^timestamps.lastAccessed}}`) for fallbacks. Triple mustaches (`{{{value}}}`) bypass HTML escaping—only use them when you trust the output.
 
 ## Development Setup
 
@@ -103,7 +115,7 @@ Follow the steps below after running the relevant `npm run build:<browser>` comm
 
 - Use `dist/safari` as the WebExtension payload when creating a Safari Web Extension App in Xcode.
 - In Xcode, enable the `Share` entitlement if you rely on the Share Sheet fallback.
-- Increment the Xcode project version alongside the manifest version (`1.8.0`) before archiving.
+- Increment the Xcode project version alongside the manifest version (`1.8.1`) before archiving.
 - Export a signed `.pkg` or submit directly to App Store Connect for notarisation and distribution.
 
 ## Tips & Limitations

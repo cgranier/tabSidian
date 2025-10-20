@@ -1,63 +1,98 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>tabSidian - Settings</title>
     <link rel="stylesheet" href="options.css" />
     <script src="options.js" defer></script>
   </head>
   <body>
     <div class="container">
-      <img src="icon128.png" alt="tabSidian" class="logo" />
-      <h1>tabSidian - Settings</h1>
-      <p class="platform-hint" data-platform-hint hidden></p>
-      <div class="section">
+      <header class="page-header">
+        <img src="icon128.png" alt="tabSidian" class="logo" />
+        <h1>tabSidian - Settings</h1>
+        <p class="platform-hint" data-platform-hint hidden></p>
+      </header>
+
+      <section class="section">
         <h2>Restricted URLs</h2>
         <p>
           Add any URLs you want to restrict from processing by tabSidian.<br />
           Use one line per URL.
         </p>
         <textarea id="restrictedUrls" rows="5" cols="50"></textarea>
-      </div>
-      <div class="section">
-        <h2>Markdown Customization</h2>
-        <p>
-          Customize the Markdown format for tab titles and URLs.<br />Use
-          <strong>{title}</strong> to output the tab's Title.<br />
-          Use <strong>{url}</strong> to output the tab's URL.<br />
-          Use <strong>\n</strong> or press <strong>Enter</strong> for line
-          breaks. Add a linebreak at the end, to separate your entries.
-        </p>
-        <label for="markdownFormat">Markdown Format:</label>
-        <textarea id="markdownFormat" rows="5" cols="50"></textarea>
-        <br />
-        <span class="default-format"
-          >Default: ## {title}\n[{url}]({url})\n\n</span
-        >
-        <br />
-        <label for="presetFormats">Preset Formats:</label>
-        <select id="presetFormats">
-          <option value="## {title}\n[{url}]({url})\n\n">Default</option>
-          <option value="- [{title}]({url})\n">List Format</option>
-          <option value="### {title}\n> {url}\n\n">Quote Format</option>
-        </select>
-        <h3>Formatting Examples</h3>
-        <div class="section">
-          <p>
-            <strong>Example 1:</strong>
-            <code>## {title}\n[{url}]({url})\n\n</code><br />
-            This will produce:<br />
-            <code>## Tab Title 1<br />[https://url.com](https://url.com)</code>
-          </p>
-          <p>
-            <strong>Example 2:</strong> <code>- [{title}]({url})\n</code><br />
-            This will produce:<br />
-            <code>- [Tab Title 1](https://url.com)</code>
-            <code>- [Tab Title 2](https://url.com)</code>
+      </section>
+
+      <section class="section section-template">
+        <div class="section-heading">
+          <h2>Template Editor</h2>
+          <p class="section-hint">
+            Use Mustache-style placeholders to customize how your tab list is exported. All rendering
+            happens locally with a sandboxed engine.
           </p>
         </div>
-      </div>
-      <br />
-      <div class="section">
+
+        <div class="template-grid">
+          <div class="template-editor">
+            <div class="preset-row">
+              <label for="presetFormats">Presets</label>
+              <select id="presetFormats"></select>
+              <button id="applyPreset" type="button">Load</button>
+              <button id="resetTemplate" type="button">Reset</button>
+            </div>
+            <p class="preset-description" data-preset-description></p>
+
+            <label for="markdownFormat">Active template</label>
+            <textarea
+              id="markdownFormat"
+              rows="14"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              autocorrect="off"
+            ></textarea>
+
+            <div class="preset-save">
+              <label for="presetName">Save current as preset</label>
+              <div class="inline-controls">
+                <input
+                  type="text"
+                  id="presetName"
+                  placeholder="Preset name"
+                  autocomplete="off"
+                  aria-describedby="presetNameHint"
+                />
+                <button id="savePreset" type="button">Save Preset</button>
+                <button id="deletePreset" type="button" disabled>Delete</button>
+              </div>
+              <p id="presetNameHint" class="hint">
+                Presets are stored in your browser sync storage and can be exported for sharing.
+              </p>
+            </div>
+
+            <div class="preset-library">
+              <span class="toolbar-label">Preset library</span>
+              <button id="importPresets" type="button">Import</button>
+              <button id="exportPresets" type="button">Export</button>
+              <input type="file" id="presetImportInput" accept="application/json" hidden />
+            </div>
+
+            <div class="template-status" data-template-status aria-live="polite"></div>
+            <div class="template-feedback" data-template-feedback aria-live="polite"></div>
+          </div>
+
+          <div class="template-preview">
+            <div class="preview-header">
+              <h3>Live Preview</h3>
+              <span>Rendered with sample tabs</span>
+            </div>
+            <pre class="preview-output" data-template-preview></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
         <h2>Obsidian Export</h2>
         <p>
           Configure direct exports for vaults with the Advanced URI plugin installed.<br />
@@ -70,7 +105,6 @@
           placeholder="My Obsidian Vault"
           autocomplete="off"
         />
-        <br />
         <label for="obsidianNotePath">Note path template:</label>
         <input
           type="text"
@@ -82,22 +116,84 @@
           <strong>{timestamp}</strong> is replaced with the export timestamp. Paths must end with
           <strong>.md</strong> and are resolved inside your vault.
         </p>
+      </section>
+
+      <section class="section">
+        <h2>Template Variables</h2>
+        <p>
+          The sections below list all variables available inside templates. Use these to reference tab
+          metadata, export timestamps, and window information.
+        </p>
+        <div class="variable-docs" data-template-docs>
+          <h3>Top-level values</h3>
+          <ul>
+            <li><code>{{{frontmatter}}}</code> &mdash; pre-built YAML block that includes export date, time, tab count, and window metadata.</li>
+            <li><code>{{export.iso}}</code> &mdash; ISO 8601 timestamp for the export.</li>
+            <li><code>{{export.filename}}</code> &mdash; timestamp formatted for filenames (e.g. <code>2024-03-15T12-34-56</code>).</li>
+            <li><code>{{export.local.date}}</code> / <code>{{export.local.time}}</code> &mdash; localized export date and time strings.</li>
+            <li><code>{{export.tabCount}}</code> &mdash; total number of tabs included in the export.</li>
+          </ul>
+
+          <h3>Window metadata</h3>
+          <ul>
+            <li><code>{{window.title}}</code> &mdash; title of the active browser window.</li>
+            <li><code>{{window.id}}</code> &mdash; numeric window identifier.</li>
+            <li><code>{{window.focused}}</code> &mdash; <code>true</code> when the window was focused during export.</li>
+            <li><code>{{window.incognito}}</code> &mdash; <code>true</code> when the window is private/incognito.</li>
+          </ul>
+
+          <h3>Tab fields</h3>
+          <p>Available inside the <code>{{#tabs}}</code> section:</p>
+          <ul>
+            <li><code>{{title}}</code> &mdash; cleaned tab title.</li>
+            <li><code>{{url}}</code>, <code>{{origin}}</code>, <code>{{hostname}}</code>, <code>{{protocol}}</code>, <code>{{pathname}}</code>, <code>{{search}}</code>, <code>{{hash}}</code>.</li>
+            <li><code>{{favicon}}</code> &mdash; favicon URL when provided by the browser.</li>
+            <li><code>{{index}}</code> / <code>{{position}}</code> &mdash; zero-based and one-based index of the tab.</li>
+            <li><code>{{active}}</code>, <code>{{highlighted}}</code>, <code>{{pinned}}</code>, <code>{{audible}}</code>, <code>{{muted}}</code>, <code>{{discarded}}</code>, <code>{{incognito}}</code>.</li>
+            <li><code>{{id}}</code> &mdash; browser tab identifier.</li>
+            <li><code>{{windowId}}</code> &mdash; numeric window identifier for the tab.</li>
+            <li><code>{{window.title}}</code> &mdash; window title scoped to the current tab.</li>
+          </ul>
+
+          <h4>Tab timestamps</h4>
+          <ul>
+            <li><code>{{timestamps.lastAccessed}}</code> &mdash; ISO timestamp for the last time the tab was active (when available).</li>
+            <li><code>{{timestamps.lastAccessedRelative}}</code> &mdash; human-friendly relative string (for example, <em>5 minutes ago</em>).</li>
+          </ul>
+
+          <h4>Template helpers</h4>
+          <ul>
+            <li><code>{{#tabs}}</code> / <code>{{/tabs}}</code> &mdash; iterate over every tab.</li>
+            <li><code>{{#favicon}}...{{/favicon}}</code> &mdash; render the block only when the favicon URL is present.</li>
+            <li><code>{{^timestamps.lastAccessed}}...{{/timestamps.lastAccessed}}</code> &mdash; render when that field is empty.</li>
+            <li><code>{{.}}</code> &mdash; returns the current value inside a section.</li>
+          </ul>
+
+          <p class="hint">
+            All variables are HTML-escaped automatically. Use triple mustaches (<code>{{{value}}}</code>) when you trust the content &mdash; for example, <code>{{{frontmatter}}}</code>.
+          </p>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="save">Save</button>
       </div>
-      <br />
-      <button id="save">Save</button>
-      <p class="credits">
-        <a href="https://www.flaticon.com/free-icons/tabs" title="tabs icons"
-          >Tabs icons created by Freepik - Flaticon</a
-        >
-      </p>
-      <p class="credits">
-        Created by
-        <a href="https://x.com/cgranier">Carlos Granier</a> in Miami, FL.
-      </p>
-      <p class="credits">
-        Version 1.7 - Source code available on
-        <a href="https://github.com/cgranier/tabSidian">GitHub</a>.
-      </p>
+
+      <footer class="credits">
+        <p>
+          <a href="https://www.flaticon.com/free-icons/tabs" title="tabs icons"
+            >Tabs icons created by Freepik - Flaticon</a
+          >
+        </p>
+        <p>
+          Created by
+          <a href="https://x.com/cgranier">Carlos Granier</a> in Miami, FL.
+        </p>
+        <p>
+          Version 1.8.1 - Source code available on
+          <a href="https://github.com/cgranier/tabSidian">GitHub</a>.
+        </p>
+      </footer>
     </div>
   </body>
 </html>

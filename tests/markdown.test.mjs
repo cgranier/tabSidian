@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   formatTabsMarkdown,
   DEFAULT_MARKDOWN_FORMAT,
-  buildTemplateContext
+  buildTemplateContext,
+  resolveFrontmatterFields
 } from "../src/platform/markdown.js";
+import { DEFAULT_FRONTMATTER_FIELDS } from "../src/platform/defaults.js";
 
 const SAMPLE_TABS = [
   {
@@ -77,6 +79,7 @@ test("buildTemplateContext exposes tab metadata and timestamps", () => {
   assert.equal(context.export.tabCount, 2);
   assert.equal(context.window.title, SAMPLE_WINDOW.title);
   assert.equal(context.tabs[1].timestamps.lastAccessedRelative, "1 day ago");
+  assert.deepEqual(context.frontmatterFields, DEFAULT_FRONTMATTER_FIELDS);
 });
 
 test("formatTabsMarkdown falls back to the default template when rendering fails", () => {
@@ -92,4 +95,46 @@ test("formatTabsMarkdown falls back to the default template when rendering fails
 
   assert.equal(fallback.markdown, expected.markdown);
   assert.equal(fallback.formattedTimestamp, expected.formattedTimestamp);
+});
+
+test("formatTabsMarkdown respects custom frontmatter field names", () => {
+  const customFields = {
+    date: "date",
+    time: "time",
+    exportedAt: "exported_at",
+    tabCount: "total_tabs",
+    windowTitle: "window-title",
+    windowIncognito: "private"
+  };
+
+  const { markdown } = formatTabsMarkdown(SAMPLE_TABS, DEFAULT_MARKDOWN_FORMAT, {
+    window: SAMPLE_WINDOW,
+    now: FIXED_NOW,
+    frontmatterFields: customFields
+  });
+
+  assert.ok(markdown.includes("date: 2025-20-10"));
+  assert.ok(markdown.includes("total_tabs: 2"));
+  assert.ok(markdown.includes('window-title: "Workspace · Project"'));
+  assert.ok(!markdown.includes("tab_count:"));
+});
+
+test("resolveFrontmatterFields falls back to defaults for invalid entries", () => {
+  const overrides = {
+    date: "Date!",
+    time: "export_time",
+    exportedAt: "when",
+    tabCount: "",
+    windowTitle: "title",
+    windowIncognito: "private-mode"
+  };
+
+  const resolved = resolveFrontmatterFields(overrides);
+
+  assert.equal(resolved.date, DEFAULT_FRONTMATTER_FIELDS.date);
+  assert.equal(resolved.time, "export_time");
+  assert.equal(resolved.exportedAt, "when");
+  assert.equal(resolved.tabCount, DEFAULT_FRONTMATTER_FIELDS.tabCount);
+  assert.equal(resolved.windowTitle, "title");
+  assert.equal(resolved.windowIncognito, "private-mode");
 });

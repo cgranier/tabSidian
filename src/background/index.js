@@ -5,7 +5,7 @@ import {
   DEFAULT_RESTRICTED_URLS
 } from "../platform/defaults.js";
 import { deliverMarkdownFile } from "../platform/download.js";
-import { formatTabsMarkdown } from "../platform/markdown.js";
+import { formatTabsMarkdown, resolveFrontmatterFields } from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, shouldProcessTab } from "../platform/tabFilters.js";
 import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
 
@@ -195,11 +195,23 @@ function clipboardInjectionExecutor(text, preferNavigator = true) {
   return execCommandCopy();
 }
 
+const RESTRICTED_CLIPBOARD_PREFIXES = [
+  "chrome://",
+  "edge://",
+  "about:",
+  "chrome-extension://",
+  "moz-extension://",
+  "edge-extension://",
+  "safari-web-extension://",
+  "extension://"
+];
+
 function isRestrictedClipboardUrl(url) {
   if (typeof url !== "string" || url.length === 0) {
     return false;
   }
-  return /^(chrome|edge|about):/.test(url);
+
+  return RESTRICTED_CLIPBOARD_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
 
 async function writeClipboardFromExtension(text) {
@@ -363,7 +375,8 @@ async function resolveUserPreferences() {
     "restrictedUrls",
     "markdownFormat",
     "obsidianVault",
-    "obsidianNotePath"
+    "obsidianNotePath",
+    "frontmatterFieldNames"
   ]);
 
   const rawRestricted = Array.isArray(storage.restrictedUrls) && storage.restrictedUrls.length
@@ -380,10 +393,14 @@ async function resolveUserPreferences() {
       ? storage.obsidianNotePath
       : DEFAULT_OBSIDIAN_NOTE_PATH;
   const obsidianNotePath = sanitizeNotePath(obsidianNotePathSource);
+  const frontmatterFields = resolveFrontmatterFields(
+    storage && typeof storage.frontmatterFieldNames === "object" ? storage.frontmatterFieldNames : undefined
+  );
 
   return {
     restrictedUrls: sanitizeRestrictedUrls(rawRestricted),
     markdownFormat: format,
+    frontmatterFields,
     obsidian: {
       enabled: Boolean(obsidianVault && obsidianNotePath),
       vault: obsidianVault,
@@ -443,10 +460,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
   };
 
   if (restrictedActiveTab) {
-    await notifyUser(
-      "tabSidian can’t run on this page",
-      "Browser system pages (edge://, chrome://, about:) don’t allow Obsidian exports. Switch back to an http or https tab and try again."
-    );
+    await notifyUser("tabSidian can’t run on this page", "Browser system or extension pages (edge://, chrome://, moz-extension://, etc.) don’t allow Obsidian exports. Switch back to an http or https tab and try again.");
     return { attempted: true, success: false, reason: "restricted_active_tab" };
   }
 
@@ -521,10 +535,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
   console.error("tabSidian Obsidian navigation failed", navigationResult.reason ?? updateResult.reason);
 
   if (restrictedActiveTab) {
-    await notifyUser(
-      "tabSidian export blocked",
-      "Browser system pages (like edge://extensions) do not allow launching Obsidian. Switch back to a regular webpage and try again."
-    );
+    await notifyUser("tabSidian export blocked", "Browser system or extension pages (like edge://extensions) do not allow launching Obsidian. Switch back to a regular webpage and try again.");
     return { attempted: true, success: false, reason: "restricted_active_tab" };
   }
 
@@ -542,7 +553,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
 }
 
 async function handleClick() {
-  const { restrictedUrls, markdownFormat, obsidian } = await resolveUserPreferences();
+  const { restrictedUrls, markdownFormat, frontmatterFields, obsidian } = await resolveUserPreferences();
   const { window: activeWindow, tabs } = await getActiveWindowTabs();
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
@@ -551,7 +562,8 @@ async function handleClick() {
   }
 
   const { markdown, formattedTimestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
-    window: activeWindow ?? undefined
+    window: activeWindow ?? undefined,
+    frontmatterFields
   });
   const filename = `${formattedTimestamp}_OpenTabs.md`;
 

@@ -44,6 +44,7 @@ Latest packaged release: [tabSidian 1.8.1](versions/tabSidian_1.8.1.zip)
 The options page now ships with a sandboxed Mustache renderer. Templates can reference:
 
 - `{{{frontmatter}}}`, `{{export.iso}}`, `{{export.filename}}`, and `{{export.tabCount}}` for export metadata.
+- Frontmatter keys are configurable in the options UI; the active names are exposed via `{{frontmatterFields.date}}`, `{{frontmatterFields.time}}`, `{{frontmatterFields.exportedAt}}`, `{{frontmatterFields.tabCount}}`, `{{frontmatterFields.windowTitle}}`, and `{{frontmatterFields.windowIncognito}}`.
 - `{{window.title}}`, `{{window.id}}`, `{{window.focused}}`, and `{{window.incognito}}` for window context.
 - Inside `{{#tabs}}...{{/tabs}}`, use `{{title}}`, `{{url}}`, `{{hostname}}`, `{{origin}}`, `{{protocol}}`, `{{pathname}}`, `{{search}}`, and `{{hash}}`.
 - Each tab exposes booleans such as `{{active}}`, `{{highlighted}}`, `{{pinned}}`, `{{audible}}`, `{{muted}}`, `{{discarded}}`, and `{{incognito}}`, plus `{{favicon}}` and positional helpers `{{index}}` / `{{position}}`.

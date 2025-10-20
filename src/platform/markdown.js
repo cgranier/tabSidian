@@ -47,6 +47,15 @@ import { renderTemplate } from "./templateEngine.js";
  * @property {Array<TemplateTabContext>} tabs
  */
 
+export const DEFAULT_FRONTMATTER_FIELDS = Object.freeze({
+  date: "date_created",
+  time: "time_created",
+  exportedAt: "exported_at",
+  tabCount: "tab_count",
+  windowTitle: "window_title",
+  windowIncognito: "window_incognito"
+});
+
 /** @type {TemplateWindowContext} */
 const EMPTY_WINDOW = {
   id: null,
@@ -196,20 +205,51 @@ function sanitizeYamlValue(value) {
   return `"${normalized}"`;
 }
 
-function buildFrontmatter(timestamp, tabs, windowInfo) {
+const FIELD_NAME_PATTERN = /^[A-Za-z0-9_\-]+$/;
+
+function sanitizeFieldName(candidate, fallback) {
+  if (typeof candidate !== "string") {
+    return fallback;
+  }
+  const trimmed = candidate.trim();
+  if (trimmed.length === 0) {
+    return fallback;
+  }
+  if (!FIELD_NAME_PATTERN.test(trimmed)) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+export function resolveFrontmatterFields(overrides = {}) {
+  const normalized = { ...DEFAULT_FRONTMATTER_FIELDS };
+
+  /** @type {Array<keyof typeof DEFAULT_FRONTMATTER_FIELDS>} */
+  const keys = /** @type {Array<keyof typeof DEFAULT_FRONTMATTER_FIELDS>} */ (Object.keys(DEFAULT_FRONTMATTER_FIELDS));
+  keys.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+      normalized[key] = sanitizeFieldName(overrides[key], DEFAULT_FRONTMATTER_FIELDS[key]);
+    }
+  });
+
+  return normalized;
+}
+
+function buildFrontmatter(timestamp, tabs, windowInfo, fieldNames) {
+  const names = resolveFrontmatterFields(fieldNames);
   const lines = [
     "---",
-    `date_created: ${timestamp.local.date}`,
-    `time_created: ${timestamp.local.time}`,
-    `exported_at: ${timestamp.iso}`,
-    `tab_count: ${tabs.length}`
+    `${names.date}: ${timestamp.local.date}`,
+    `${names.time}: ${timestamp.local.time}`,
+    `${names.exportedAt}: ${timestamp.iso}`,
+    `${names.tabCount}: ${tabs.length}`
   ];
 
   if (windowInfo.title) {
-    lines.push(`window_title: ${sanitizeYamlValue(windowInfo.title)}`);
+    lines.push(`${names.windowTitle}: ${sanitizeYamlValue(windowInfo.title)}`);
   }
 
-  lines.push(`window_incognito: ${windowInfo.incognito ? "true" : "false"}`);
+  lines.push(`${names.windowIncognito}: ${windowInfo.incognito ? "true" : "false"}`);
   lines.push("---", "");
   return lines.join("\n");
 }
@@ -273,9 +313,10 @@ export function buildTemplateContext(tabs = [], options = {}) {
   const now = options.now instanceof Date ? options.now : new Date();
   const timestamp = formatTimestamp(now);
   const windowInfo = normalizeWindow(options.window);
+  const frontmatterFields = resolveFrontmatterFields(options.frontmatterFields);
 
   const tabContexts = tabs.map((tab, index) => buildTabContext(tab, index, windowInfo, timestamp.epoch));
-  const frontmatter = buildFrontmatter(timestamp, tabContexts, windowInfo);
+  const frontmatter = buildFrontmatter(timestamp, tabContexts, windowInfo, frontmatterFields);
 
   const context = {
     frontmatter,
@@ -286,7 +327,8 @@ export function buildTemplateContext(tabs = [], options = {}) {
       tabCount: tabContexts.length
     },
     window: windowInfo,
-    tabs: tabContexts
+    tabs: tabContexts,
+    frontmatterFields
   };
 
   return { context, timestamp };
@@ -301,7 +343,8 @@ export function buildTemplateContext(tabs = [], options = {}) {
 export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, options = {}) {
   const { context, timestamp } = buildTemplateContext(tabs, {
     window: options.window,
-    now: options.now
+    now: options.now,
+    frontmatterFields: options.frontmatterFields
   });
 
   try {
@@ -363,10 +406,15 @@ const SAMPLE_TABS = [
   }
 ];
 
+export function createSampleTemplateContext(frontmatterFields) {
+  return buildTemplateContext(SAMPLE_TABS, {
+    window: SAMPLE_WINDOW,
+    now: SAMPLE_NOW,
+    frontmatterFields
+  }).context;
+}
+
 /**
  * Sample template context that powers the live preview on the options page.
  */
-export const SAMPLE_TEMPLATE_CONTEXT = buildTemplateContext(SAMPLE_TABS, {
-  window: SAMPLE_WINDOW,
-  now: SAMPLE_NOW
-}).context;
+export const SAMPLE_TEMPLATE_CONTEXT = createSampleTemplateContext();

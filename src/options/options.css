@@ -110,6 +110,23 @@ textarea {
   align-items: start;
 }
 
+.frontmatter-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.6fr) 1fr;
+  gap: 12px 16px;
+  margin-top: 16px;
+}
+
+.frontmatter-grid label {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0;
+}
+
+.frontmatter-grid input[type="text"] {
+  width: 100%;
+}
+
 .template-editor {
   display: flex;
   flex-direction: column;
@@ -272,6 +289,10 @@ button:disabled {
   color: #047857;
 }
 
+.frontmatter-feedback {
+  margin-top: 16px;
+}
+
 .hint {
   font-size: 12px;
   color: #6b7280;
@@ -332,5 +353,9 @@ button:disabled {
 
   .template-preview {
     min-height: 240px;
+  }
+
+  .frontmatter-grid {
+    grid-template-columns: 1fr;
   }
 }

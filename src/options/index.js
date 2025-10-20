@@ -2,9 +2,10 @@ import browser from "webextension-polyfill";
 import {
   DEFAULT_MARKDOWN_FORMAT,
   DEFAULT_OBSIDIAN_NOTE_PATH,
-  DEFAULT_RESTRICTED_URLS
+  DEFAULT_RESTRICTED_URLS,
+  DEFAULT_FRONTMATTER_FIELDS
 } from "../platform/defaults.js";
-import { SAMPLE_TEMPLATE_CONTEXT } from "../platform/markdown.js";
+import { createSampleTemplateContext, resolveFrontmatterFields } from "../platform/markdown.js";
 import { renderTemplate, validateTemplate } from "../platform/templateEngine.js";
 import { describePlatform, IS_SAFARI } from "../platform/runtime.js";
 import { sanitizeRestrictedUrls } from "../platform/tabFilters.js";
@@ -62,6 +63,8 @@ const elements = {
   templateFeedback: () => document.querySelector("[data-template-feedback]"),
   templateStatus: () => document.querySelector("[data-template-status]"),
   templateDocs: () => document.querySelector("[data-template-docs]"),
+  frontmatterInputs: () => document.querySelectorAll("[data-frontmatter-field]"),
+  frontmatterFeedback: () => document.querySelector("[data-frontmatter-feedback]"),
   save: () => document.getElementById("save"),
   platformHint: () => document.querySelector("[data-platform-hint]"),
   obsidianVault: () => document.getElementById("obsidianVault"),
@@ -76,6 +79,11 @@ const state = {
     warnings: [],
     preview: "",
     previewError: null
+  },
+  frontmatterFields: { ...DEFAULT_FRONTMATTER_FIELDS },
+  frontmatterValidation: {
+    hasErrors: false,
+    messages: []
   }
 };
 
@@ -113,6 +121,116 @@ function toMultilineValue(values) {
 
 function parseMultiline(value) {
   return sanitizeRestrictedUrls(value.split("\n").map((entry) => entry.trim()));
+}
+
+const FRONTMATTER_FIELD_KEYS = /** @type {Array<keyof typeof DEFAULT_FRONTMATTER_FIELDS>} */ (
+  Object.keys(DEFAULT_FRONTMATTER_FIELDS)
+);
+const FRONTMATTER_FIELD_PATTERN = /^[A-Za-z0-9_\-]+$/;
+
+function sanitizeFrontmatterInput(value) {
+  return (value ?? "").trim();
+}
+
+function setFrontmatterInputs(fieldMap = DEFAULT_FRONTMATTER_FIELDS) {
+  const resolved = resolveFrontmatterFields(fieldMap);
+  FRONTMATTER_FIELD_KEYS.forEach((key) => {
+    const input = document.querySelector(`[data-frontmatter-field="${key}"]`);
+    if (input instanceof HTMLInputElement) {
+      input.value = resolved[key];
+      input.setCustomValidity("");
+    }
+  });
+  state.frontmatterFields = resolved;
+  state.frontmatterValidation = {
+    hasErrors: false,
+    messages: []
+  };
+  updateFrontmatterFeedback();
+}
+
+function validateFrontmatterInputs() {
+  /** @type {Record<string, string>} */
+  const collected = {};
+  const messages = [];
+  let hasErrors = false;
+
+  /** @type {Map<string, HTMLInputElement>} */
+  const seen = new Map();
+
+  FRONTMATTER_FIELD_KEYS.forEach((key) => {
+    const input = document.querySelector(`[data-frontmatter-field="${key}"]`);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const trimmed = sanitizeFrontmatterInput(input.value);
+    input.value = trimmed;
+    let message = "";
+
+    if (trimmed.length === 0) {
+      message = "Field name is required.";
+    } else if (!FRONTMATTER_FIELD_PATTERN.test(trimmed)) {
+      message = "Use letters, numbers, hyphen, or underscore.";
+    } else {
+      const lower = trimmed.toLowerCase();
+      if (seen.has(lower)) {
+        message = `Duplicate field name (“${trimmed}”).`;
+        const other = seen.get(lower);
+        if (other) {
+          other.setCustomValidity(message);
+        }
+      } else {
+        seen.set(lower, input);
+        collected[key] = trimmed;
+      }
+    }
+
+    if (message) {
+      hasErrors = true;
+      input.setCustomValidity(message);
+      messages.push(message);
+    } else {
+      input.setCustomValidity("");
+    }
+  });
+
+  const normalized = resolveFrontmatterFields(collected);
+  return {
+    hasErrors,
+    messages,
+    normalized
+  };
+}
+
+function updateFrontmatterFeedback() {
+  const feedbackElement = elements.frontmatterFeedback();
+  if (!feedbackElement) {
+    return;
+  }
+
+  const { hasErrors, messages } = state.frontmatterValidation;
+  feedbackElement.textContent = "";
+  feedbackElement.classList.remove("is-error", "is-ok", "is-warning");
+
+  if (hasErrors) {
+    const uniqueMessages = [...new Set(messages)];
+    feedbackElement.textContent = uniqueMessages.join(" · ");
+    feedbackElement.classList.add("is-error");
+  }
+}
+
+function updateFrontmatterState() {
+  const result = validateFrontmatterInputs();
+  state.frontmatterValidation = {
+    hasErrors: result.hasErrors,
+    messages: result.messages
+  };
+  if (!result.hasErrors) {
+    state.frontmatterFields = result.normalized;
+  }
+  updateFrontmatterFeedback();
+  updateTemplatePreview();
 }
 
 const OBSIDIAN_VAULT_PATTERN = /^[\w-](?:[\w\- ]+)?$/u;
@@ -273,7 +391,7 @@ function updateTemplateFeedback(diagnostics) {
   feedbackElement.classList.add("is-ok");
 }
 
-function computeTemplateDiagnostics(template) {
+function computeTemplateDiagnostics(template, sampleContext) {
   const validation = validateTemplate(template);
   const errors = [...validation.errors];
   const warnings = [...validation.warnings];
@@ -283,7 +401,7 @@ function computeTemplateDiagnostics(template) {
 
   if (errors.length === 0) {
     try {
-      preview = renderTemplate(template, SAMPLE_TEMPLATE_CONTEXT);
+      preview = renderTemplate(template, sampleContext);
     } catch (error) {
       previewError =
         error instanceof Error ? error.message : "Unknown template rendering error.";
@@ -371,6 +489,7 @@ function updatePresetButtons() {
 
   const hasName = presetNameInput.value.trim().length > 0;
   const hasErrors = state.diagnostics.errors.length > 0;
+  const hasFrontmatterErrors = state.frontmatterValidation.hasErrors;
 
   if (applyPresetButton) {
     applyPresetButton.disabled = state.selectedPresetId === CURRENT_TEMPLATE_OPTION_ID;
@@ -387,13 +506,14 @@ function updatePresetButtons() {
   }
 
   if (saveButton) {
-    saveButton.disabled = hasErrors;
+    saveButton.disabled = hasErrors || hasFrontmatterErrors;
   }
 }
 
 function updateTemplatePreview() {
   const template = elements.markdownFormat().value ?? "";
-  const diagnostics = computeTemplateDiagnostics(template);
+  const sampleContext = createSampleTemplateContext(state.frontmatterFields);
+  const diagnostics = computeTemplateDiagnostics(template, sampleContext);
   state.diagnostics = diagnostics;
 
   const previewElement = elements.templatePreview();
@@ -619,6 +739,7 @@ async function loadPreferences() {
     "markdownFormat",
     "obsidianVault",
     "obsidianNotePath",
+    "frontmatterFieldNames",
     PRESET_STORAGE_KEY
   ]);
 
@@ -650,6 +771,7 @@ async function loadPreferences() {
   elements.markdownFormat().value = markdownFormat;
   elements.obsidianVault().value = storedVault;
   elements.obsidianNotePath().value = storedPath;
+  setFrontmatterInputs(stored.frontmatterFieldNames ?? DEFAULT_FRONTMATTER_FIELDS);
 
   refreshPresetPicker(state.selectedPresetId);
   if (matchedPreset) {
@@ -670,12 +792,23 @@ async function savePreferences() {
   if (!obsidianPreferences) {
     return;
   }
+  if (state.frontmatterValidation.hasErrors) {
+    elements.frontmatterInputs().forEach((input) => {
+      if (input instanceof HTMLInputElement) {
+        input.reportValidity();
+      }
+    });
+    updateFrontmatterFeedback();
+    setTemplateStatus("Resolve frontmatter field errors before saving.", "error");
+    return;
+  }
 
   await browser.storage.sync.set({
     restrictedUrls,
     markdownFormat,
     obsidianVault: obsidianPreferences.vault,
     obsidianNotePath: obsidianPreferences.notePath,
+    frontmatterFieldNames: state.frontmatterFields,
     [PRESET_STORAGE_KEY]: state.customPresets
   });
 
@@ -694,6 +827,19 @@ function attachEvents() {
     state.selectedPresetId = CURRENT_TEMPLATE_OPTION_ID;
     updateTemplatePreview();
     refreshPresetPicker();
+  });
+
+  elements.frontmatterInputs().forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    input.addEventListener("input", () => {
+      updateFrontmatterState();
+    });
+    input.addEventListener("blur", () => {
+      input.value = sanitizeFrontmatterInput(input.value);
+      updateFrontmatterState();
+    });
   });
 
   const presetNameInput = elements.presetName();

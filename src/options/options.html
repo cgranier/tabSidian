@@ -67,6 +67,27 @@
           >
             Restricted URLs
           </button>
+          <aside class="support-card">
+            <h2>Support tabSidian</h2>
+            <p>
+              If tabSidian helps your workflow, consider buying me a coffee.
+            </p>
+            <a
+              class="support-button"
+              href="https://www.buymeacoffee.com/cgranier"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img src="support/bmc-button.svg" alt="Buy Me a Coffee" />
+            </a>
+            <div class="support-qr">
+              <img
+                src="support/coffee-qr-code-opt.png"
+                alt="Scan to support tabSidian"
+              />
+              <span>Scan with your phone</span>
+            </div>
+          </aside>
         </nav>
 
         <main class="settings-main">
@@ -80,7 +101,10 @@
           >
             <div class="panel-header">
               <h2>General</h2>
-              <p>Auto-save is enabled. Fields marked with * are required for direct Obsidian exports.</p>
+              <p>
+                Auto-save is enabled. Fields marked with * are required for
+                direct Obsidian exports.
+              </p>
             </div>
             <div class="field-grid two-column">
               <label for="obsidianVault">Obsidian vault name*</label>
@@ -99,23 +123,43 @@
                 autocomplete="off"
               />
               <p class="hint full-width">
-                <strong>{timestamp}</strong> is replaced with the export timestamp. Paths must end with <strong>.md</strong> and are resolved inside your vault.
+                <strong>{timestamp}</strong> is replaced with the export
+                timestamp. Paths must end with <strong>.md</strong> and are
+                resolved inside your vault.
               </p>
             </div>
             <div class="panel-footer">
               <div class="about">
                 <span class="version">Version 1.8.2</span>
                 <span class="dot">•</span>
-                <a href="https://x.com/cgranier" target="_blank" rel="noreferrer">Contact</a>
+                <a
+                  href="https://x.com/cgranier"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Contact</a
+                >
                 <span class="dot">•</span>
-                <a href="https://github.com/cgranier/tabSidian" target="_blank" rel="noreferrer">Source</a>
+                <a
+                  href="https://github.com/cgranier/tabSidian"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Source</a
+                >
               </div>
               <div class="reset-buttons">
                 <button id="resetGeneral" type="button">Reset General</button>
-                <button id="resetProperties" type="button">Reset Properties</button>
-                <button id="resetTemplates" type="button">Reset Templates</button>
-                <button id="resetRestricted" type="button">Reset Restricted URLs</button>
-                <button id="resetAll" type="button" class="danger">Reset All</button>
+                <button id="resetProperties" type="button">
+                  Reset Properties
+                </button>
+                <button id="resetTemplates" type="button">
+                  Reset Templates
+                </button>
+                <button id="resetRestricted" type="button">
+                  Reset Restricted URLs
+                </button>
+                <button id="resetAll" type="button" class="danger">
+                  Reset All
+                </button>
               </div>
             </div>
           </section>
@@ -131,7 +175,9 @@
           >
             <div class="panel-header">
               <h2>Properties</h2>
-              <p>Customize the YAML keys generated in the export frontmatter.</p>
+              <p>
+                Customize the YAML keys generated in the export frontmatter.
+              </p>
             </div>
             <div class="frontmatter-grid">
               <div class="frontmatter-toggle">
@@ -263,7 +309,9 @@
                   aria-controls="frontmatter-collectionsField"
                   aria-label="Include collections array in frontmatter"
                 />
-                <label for="frontmatter-collectionsField">Collections field</label>
+                <label for="frontmatter-collectionsField"
+                  >Collections field</label
+                >
               </div>
               <input
                 id="frontmatter-collectionsField"
@@ -295,55 +343,76 @@
                 aria-label="Frontmatter field name for incognito flag"
               />
             </div>
-        <div class="frontmatter-templates">
-          <div class="field-block">
-            <label for="frontmatterTitleTemplate">Default title template</label>
-            <textarea
-              id="frontmatterTitleTemplate"
-              rows="3"
-              spellcheck="false"
-              autocapitalize="off"
-              autocomplete="off"
-              autocorrect="off"
-              aria-describedby="frontmatterTitleHint"
-            ></textarea>
-            <p id="frontmatterTitleHint" class="hint">
-              Use Mustache placeholders such as <code>{{{export.tabCount}}}</code>, <code>{{{export.local.date}}}</code>, or <code>{{{window.title}}}</code>.
-            </p>
-          </div>
-          <div class="field-block">
-            <label for="frontmatterTags">Default tags</label>
-            <textarea
-              id="frontmatterTags"
-              rows="4"
-              spellcheck="false"
-              autocapitalize="off"
-              autocomplete="off"
-              autocorrect="off"
-              aria-describedby="frontmatterTagsHint"
-            ></textarea>
-            <p id="frontmatterTagsHint" class="hint">
-              One per line. Conditional tags are supported, e.g. <code>{{#window.incognito}}incognito{{/window.incognito}}</code>.
-            </p>
-          </div>
-          <div class="field-block">
-            <label for="frontmatterCollections">Collections or folders</label>
-            <textarea
-              id="frontmatterCollections"
-              rows="4"
-              spellcheck="false"
-              autocapitalize="off"
-              autocomplete="off"
-              autocorrect="off"
-              aria-describedby="frontmatterCollectionsHint"
-            ></textarea>
-            <p id="frontmatterCollectionsHint" class="hint">
-              Optional. Rendered as a YAML array to help auto-file exports. Great for vault automations—try values like <code>Research/{{{export.local.date}}}</code> or conditionals to flag incognito saves.
-            </p>
-          </div>
-          <div class="template-feedback frontmatter-list-feedback" data-frontmatter-list-feedback aria-live="polite"></div>
-        </div>
-        <div class="template-feedback frontmatter-feedback" data-frontmatter-feedback aria-live="polite"></div>
+            <div class="frontmatter-templates">
+              <div class="field-block">
+                <label for="frontmatterTitleTemplate"
+                  >Default title template</label
+                >
+                <textarea
+                  id="frontmatterTitleTemplate"
+                  rows="3"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  autocorrect="off"
+                  aria-describedby="frontmatterTitleHint"
+                ></textarea>
+                <p id="frontmatterTitleHint" class="hint">
+                  Use Mustache placeholders such as
+                  <code>{{{export.tabCount}}}</code>,
+                  <code>{{{export.local.date}}}</code>, or
+                  <code>{{{window.title}}}</code>.
+                </p>
+              </div>
+              <div class="field-block">
+                <label for="frontmatterTags">Default tags</label>
+                <textarea
+                  id="frontmatterTags"
+                  rows="4"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  autocorrect="off"
+                  aria-describedby="frontmatterTagsHint"
+                ></textarea>
+                <p id="frontmatterTagsHint" class="hint">
+                  One per line. Conditional tags are supported, e.g.
+                  <code
+                    >{{#window.incognito}}incognito{{/window.incognito}}</code
+                  >.
+                </p>
+              </div>
+              <div class="field-block">
+                <label for="frontmatterCollections"
+                  >Collections or folders</label
+                >
+                <textarea
+                  id="frontmatterCollections"
+                  rows="4"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  autocorrect="off"
+                  aria-describedby="frontmatterCollectionsHint"
+                ></textarea>
+                <p id="frontmatterCollectionsHint" class="hint">
+                  Optional. Rendered as a YAML array to help auto-file exports.
+                  Great for vault automations—try values like
+                  <code>Research/{{{export.local.date}}}</code> or conditionals
+                  to flag incognito saves.
+                </p>
+              </div>
+              <div
+                class="template-feedback frontmatter-list-feedback"
+                data-frontmatter-list-feedback
+                aria-live="polite"
+              ></div>
+            </div>
+            <div
+              class="template-feedback frontmatter-feedback"
+              data-frontmatter-feedback
+              aria-live="polite"
+            ></div>
           </section>
 
           <section
@@ -357,85 +426,150 @@
           >
             <div class="panel-header">
               <h2>Templates</h2>
-              <p>Use Mustache-style placeholders to design the Markdown output. Rendering happens locally in a sandboxed engine.</p>
-            </div>
-            <div class="template-grid">
-          <div class="template-editor">
-            <div class="preset-row">
-              <label for="presetFormats">Presets</label>
-              <select id="presetFormats"></select>
-              <button id="applyPreset" type="button">Load</button>
-              <button id="resetTemplate" type="button">Reset</button>
-            </div>
-            <p class="preset-description" data-preset-description></p>
-
-            <label for="markdownFormat">Active template</label>
-            <textarea
-              id="markdownFormat"
-              rows="14"
-              spellcheck="false"
-              autocapitalize="off"
-              autocomplete="off"
-              autocorrect="off"
-            ></textarea>
-
-            <div class="preset-save">
-              <label for="presetName">Save current as preset</label>
-              <div class="inline-controls">
-                <input
-                  type="text"
-                  id="presetName"
-                  placeholder="Preset name"
-                  autocomplete="off"
-                  aria-describedby="presetNameHint"
-                />
-                <button id="savePreset" type="button">Save Preset</button>
-                <button id="deletePreset" type="button" disabled>Delete</button>
-              </div>
-              <p id="presetNameHint" class="hint">
-                Presets are stored in your browser sync storage and can be exported for sharing.
+              <p>
+                Use Mustache-style placeholders to design the Markdown output.
+                Rendering happens locally in a sandboxed engine.
               </p>
             </div>
+            <div class="template-grid">
+              <div class="template-editor">
+                <div class="preset-row">
+                  <label for="presetFormats">Presets</label>
+                  <select id="presetFormats"></select>
+                  <button id="applyPreset" type="button">Load</button>
+                  <button id="resetTemplate" type="button">Reset</button>
+                </div>
+                <p class="preset-description" data-preset-description></p>
 
-            <div class="preset-library">
-              <span class="toolbar-label">Preset library</span>
-              <button id="importPresets" type="button">Import</button>
-              <button id="exportPresets" type="button">Export</button>
-              <input type="file" id="presetImportInput" accept="application/json" hidden />
+                <label for="markdownFormat">Active template</label>
+                <textarea
+                  id="markdownFormat"
+                  rows="14"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  autocorrect="off"
+                ></textarea>
+
+                <div class="preset-save">
+                  <label for="presetName">Save current as preset</label>
+                  <div class="inline-controls">
+                    <input
+                      type="text"
+                      id="presetName"
+                      placeholder="Preset name"
+                      autocomplete="off"
+                      aria-describedby="presetNameHint"
+                    />
+                    <button id="savePreset" type="button">Save Preset</button>
+                    <button id="deletePreset" type="button" disabled>
+                      Delete
+                    </button>
+                  </div>
+                  <p id="presetNameHint" class="hint">
+                    Presets are stored in your browser sync storage and can be
+                    exported for sharing.
+                  </p>
+                </div>
+
+                <div class="preset-library">
+                  <span class="toolbar-label">Preset library</span>
+                  <button id="importPresets" type="button">Import</button>
+                  <button id="exportPresets" type="button">Export</button>
+                  <input
+                    type="file"
+                    id="presetImportInput"
+                    accept="application/json"
+                    hidden
+                  />
+                </div>
+
+                <div
+                  class="template-feedback"
+                  data-template-feedback
+                  aria-live="polite"
+                ></div>
+              </div>
+
+              <div class="template-preview">
+                <div class="preview-header">
+                  <h3>Live Preview</h3>
+                  <span>Rendered with sample tabs</span>
+                </div>
+                <pre class="preview-output" data-template-preview></pre>
+              </div>
             </div>
 
-            <div class="template-feedback" data-template-feedback aria-live="polite"></div>
-          </div>
-
-          <div class="template-preview">
-            <div class="preview-header">
-              <h3>Live Preview</h3>
-              <span>Rendered with sample tabs</span>
+            <div class="variable-docs" data-template-docs>
+              <h3>Template variables</h3>
+              <p>
+                Reference these placeholders inside your template body. Each
+                export runs with the context below.
+              </p>
+              <ul>
+                <li>
+                  <code>{{{frontmatter}}}</code> &mdash; pre-built YAML block
+                  that includes export date, time, tab count, and window
+                  metadata. Field names follow your configuration above.
+                </li>
+                <li>
+                  <code>{{export.iso}}</code>,
+                  <code>{{export.local.date}}</code>,
+                  <code>{{export.local.time}}</code>,
+                  <code>{{export.filename}}</code>,
+                  <code>{{export.tabCount}}</code>
+                </li>
+                <li>
+                  <code>{{frontmatterFields.title}}</code>,
+                  <code>{{frontmatterFields.tags}}</code>,
+                  <code>{{frontmatterFields.collections}}</code>, etc. &mdash;
+                  resolved frontmatter key names.
+                </li>
+                <li>
+                  <code>{{groupTitle}}</code>, <code>{{group.color}}</code>,
+                  <code>{{group.colorHex}}</code>,
+                  <code>{{groupCollapsed}}</code> &mdash; tab group metadata
+                  when available.
+                </li>
+                <li>
+                  <code>{{window.title}}</code>, <code>{{window.id}}</code>,
+                  <code>{{window.focused}}</code>,
+                  <code>{{window.incognito}}</code>
+                </li>
+                <li>
+                  Inside <code>{{#tabs}}</code>: <code>{{title}}</code>,
+                  <code>{{url}}</code>, <code>{{origin}}</code>,
+                  <code>{{hostname}}</code>, <code>{{protocol}}</code>,
+                  <code>{{pathname}}</code>, <code>{{search}}</code>,
+                  <code>{{hash}}</code>, <code>{{favicon}}</code>
+                </li>
+                <li>
+                  Tab helpers: <code>{{index}}</code>,
+                  <code>{{position}}</code>, <code>{{active}}</code>,
+                  <code>{{highlighted}}</code>, <code>{{pinned}}</code>,
+                  <code>{{audible}}</code>, <code>{{muted}}</code>,
+                  <code>{{discarded}}</code>, <code>{{incognito}}</code>
+                </li>
+                <li>
+                  Timestamps: <code>{{timestamps.lastAccessed}}</code>,
+                  <code>{{timestamps.lastAccessedRelative}}</code>
+                </li>
+              </ul>
+              <p class="hint">
+                Use sections (<code>{{#favicon}}...{{/favicon}}</code>) and
+                inverted sections (<code>{{^timestamps.lastAccessed}}</code>)
+                for optional values. Iterate groups with
+                <code>{{#groups}}</code> (each exposes <code>{{tabs}}</code> and
+                <code>{{tabCount}}</code>) and use
+                <code>{{#ungroupedTabs}}</code> for everything else. Triple
+                mustaches (e.g. <code>{{{frontmatter}}}</code>) bypass HTML
+                escaping.
+              </p>
+              <p class="hint">
+                Firefox currently lacks tab group API support, so group-specific
+                variables are only populated on Chromium-based browsers.
+              </p>
             </div>
-            <pre class="preview-output" data-template-preview></pre>
-          </div>
-        </div>
-
-        <div class="variable-docs" data-template-docs>
-          <h3>Template variables</h3>
-          <p>Reference these placeholders inside your template body. Each export runs with the context below.</p>
-          <ul>
-            <li><code>{{{frontmatter}}}</code> &mdash; pre-built YAML block that includes export date, time, tab count, and window metadata. Field names follow your configuration above.</li>
-            <li><code>{{export.iso}}</code>, <code>{{export.local.date}}</code>, <code>{{export.local.time}}</code>, <code>{{export.filename}}</code>, <code>{{export.tabCount}}</code></li>
-            <li><code>{{frontmatterFields.title}}</code>, <code>{{frontmatterFields.tags}}</code>, <code>{{frontmatterFields.collections}}</code>, etc. &mdash; resolved frontmatter key names.</li>
-            <li><code>{{groupTitle}}</code>, <code>{{group.color}}</code>, <code>{{group.colorHex}}</code>, <code>{{groupCollapsed}}</code> &mdash; tab group metadata when available.</li>
-            <li><code>{{window.title}}</code>, <code>{{window.id}}</code>, <code>{{window.focused}}</code>, <code>{{window.incognito}}</code></li>
-            <li>Inside <code>{{#tabs}}</code>: <code>{{title}}</code>, <code>{{url}}</code>, <code>{{origin}}</code>, <code>{{hostname}}</code>, <code>{{protocol}}</code>, <code>{{pathname}}</code>, <code>{{search}}</code>, <code>{{hash}}</code>, <code>{{favicon}}</code></li>
-            <li>Tab helpers: <code>{{index}}</code>, <code>{{position}}</code>, <code>{{active}}</code>, <code>{{highlighted}}</code>, <code>{{pinned}}</code>, <code>{{audible}}</code>, <code>{{muted}}</code>, <code>{{discarded}}</code>, <code>{{incognito}}</code></li>
-            <li>Timestamps: <code>{{timestamps.lastAccessed}}</code>, <code>{{timestamps.lastAccessedRelative}}</code></li>
-          </ul>
-          <p class="hint">
-            Use sections (<code>{{#favicon}}...{{/favicon}}</code>) and inverted sections (<code>{{^timestamps.lastAccessed}}</code>) for optional values. Iterate groups with <code>{{#groups}}</code> (each exposes <code>{{tabs}}</code> and <code>{{tabCount}}</code>) and use <code>{{#ungroupedTabs}}</code> for everything else. Triple mustaches (e.g. <code>{{{frontmatter}}}</code>) bypass HTML escaping.
-          </p>
-          <p class="hint">
-            Firefox currently lacks tab group API support, so group-specific variables are only populated on Chromium-based browsers.
-          </p>
-        </div>
           </section>
 
           <section
@@ -449,13 +583,25 @@
           >
             <div class="panel-header">
               <h2>Restricted URLs</h2>
-              <p>Pages containing these substrings are skipped during exports. Place one entry per line.</p>
+              <p>
+                Pages containing these substrings are skipped during exports.
+                Place one entry per line.
+              </p>
             </div>
-            <textarea id="restrictedUrls" rows="12" spellcheck="false"></textarea>
+            <textarea
+              id="restrictedUrls"
+              rows="12"
+              spellcheck="false"
+            ></textarea>
             <div class="restricted-toolbar">
               <button id="restrictedImport" type="button">Import list</button>
               <button id="restrictedExport" type="button">Export list</button>
-              <input type="file" id="restrictedImportInput" accept="text/plain,application/json" hidden />
+              <input
+                type="file"
+                id="restrictedImportInput"
+                accept="text/plain,application/json"
+                hidden
+              />
             </div>
           </section>
         </main>

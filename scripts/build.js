@@ -17,7 +17,12 @@ const STATIC_FILES = [
   { from: "src/options/options.css", to: "options.css" },
   { from: "src/assets/icons/icon48.png", to: "icon48.png" },
   { from: "src/assets/icons/icon128.png", to: "icon128.png" },
-  { from: "src/share/index.html", to: "share.html" }
+  { from: "src/share/index.html", to: "share.html" },
+  { from: "src/assets/support/bmc-button.svg", to: "support/bmc-button.svg" },
+  {
+    from: "src/assets/support/coffee-qr-code-opt.png",
+    to: "support/coffee-qr-code-opt.png",
+  },
 ];
 
 function getTargetsFromCli() {
@@ -53,7 +58,7 @@ async function copyStaticAssets(targetDir) {
 async function writeManifest(targetName, targetDir) {
   const { manifest } = await generateManifest(targetName);
   await fs.writeJson(path.join(targetDir, "manifest.json"), manifest, {
-    spaces: 2
+    spaces: 2,
   });
 }
 
@@ -63,8 +68,8 @@ async function bundleScripts(target) {
     define: {
       DOWNLOAD_STRATEGY: target.downloadStrategy,
       PLATFORM_NAME: target.name,
-      replacements: target.rollup?.replacements ?? {}
-    }
+      replacements: target.rollup?.replacements ?? {},
+    },
   });
 
   for (const config of configs) {
@@ -85,7 +90,9 @@ async function buildTarget(targetName) {
   await copyStaticAssets(targetDir);
   await writeManifest(target.name, targetDir);
 
-  console.log(`Built ${target.name} → ${path.relative(PROJECT_ROOT, targetDir)}`);
+  console.log(
+    `Built ${target.name} → ${path.relative(PROJECT_ROOT, targetDir)}`
+  );
 }
 
 async function run() {

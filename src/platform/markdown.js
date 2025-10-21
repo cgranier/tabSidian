@@ -16,6 +16,14 @@ import { renderTemplate } from "./templateEngine.js";
  * @property {string} lastAccessed ISO 8601 representation of the last access time.
  * @property {string} lastAccessedRelative Human readable delta against the export time.
  *
+ * @typedef {Object} TemplateTabGroup
+ * @property {number|null} id
+ * @property {string} title
+ * @property {string} color
+ * @property {string} colorHex
+ * @property {boolean} collapsed
+ * @property {number|null} windowId
+ *
  * @typedef {Object} TemplateTabContext
  * @property {number|null} id
  * @property {number} index Zero-based index in the export order.
@@ -37,14 +45,33 @@ import { renderTemplate } from "./templateEngine.js";
  * @property {boolean} discarded
  * @property {boolean} incognito
  * @property {number|null} windowId
+ * @property {number|null} groupId
+ * @property {TemplateTabGroup|null} group
+ * @property {string} groupTitle
+ * @property {string} groupColor
+ * @property {string} groupColorHex
+ * @property {boolean|null} groupCollapsed
  * @property {TemplateWindowContext} window Parent window metadata.
  * @property {TemplateTabTimestamps} timestamps
+ *
+ * @typedef {Object} TemplateGroupContext
+ * @property {number|null} id
+ * @property {string} title
+ * @property {string} color
+ * @property {string} colorHex
+ * @property {boolean} collapsed
+ * @property {number|null} windowId
+ * @property {number} tabCount
+ * @property {Array<TemplateTabContext>} tabs
  *
  * @typedef {Object} TemplateContext
  * @property {string} frontmatter Pre-rendered YAML frontmatter block.
  * @property {TemplateTimestamp} export Export metadata.
  * @property {TemplateWindowContext} window Active browser window metadata.
  * @property {Array<TemplateTabContext>} tabs
+ * @property {Array<TemplateGroupContext>} groups
+ * @property {Array<TemplateTabContext>} ungroupedTabs
+ * @property {Record<string, TemplateTabGroup>} groupMap
  */
 
 export const DEFAULT_FRONTMATTER_FIELDS = Object.freeze({
@@ -55,6 +82,8 @@ export const DEFAULT_FRONTMATTER_FIELDS = Object.freeze({
   windowTitle: "window_title",
   windowIncognito: "window_incognito"
 });
+
+const TAB_GROUP_COLORS = Object.freeze({});
 
 /** @type {TemplateWindowContext} */
 const EMPTY_WINDOW = {
@@ -197,6 +226,48 @@ function normalizeWindow(windowInfo) {
   };
 }
 
+function normalizeTabGroup(rawGroup, fallbackId) {
+  if (!rawGroup || typeof rawGroup !== "object") {
+    return null;
+  }
+
+  const id = typeof rawGroup.id === "number" ? rawGroup.id : typeof fallbackId === "number" ? fallbackId : null;
+  const color = typeof rawGroup.color === "string" ? rawGroup.color : "";
+  const title = typeof rawGroup.title === "string" ? rawGroup.title : "";
+  let colorHex = "";
+  if (typeof rawGroup.colorCode === "string" && rawGroup.colorCode.length > 0) {
+    colorHex = rawGroup.colorCode;
+  } else if (TAB_GROUP_COLORS[color]) {
+    colorHex = TAB_GROUP_COLORS[color];
+  }
+
+  return {
+    id,
+    title,
+    color,
+    colorHex,
+    collapsed: Boolean(rawGroup.collapsed),
+    windowId: typeof rawGroup.windowId === "number" ? rawGroup.windowId : null
+  };
+}
+
+function normalizeTabGroups(rawGroups = {}) {
+  if (!rawGroups || typeof rawGroups !== "object") {
+    return {};
+  }
+
+  const normalized = {};
+  Object.entries(rawGroups).forEach(([key, value]) => {
+    const numericKey = Number(key);
+    const group = normalizeTabGroup(value, Number.isFinite(numericKey) ? numericKey : undefined);
+    if (group && typeof group.id === "number") {
+      normalized[group.id] = group;
+    }
+  });
+
+  return normalized;
+}
+
 function sanitizeYamlValue(value) {
   if (value === "" || value === null || value === undefined) {
     return '""';
@@ -270,11 +341,13 @@ function toTabTimestamps(tab, referenceMs) {
   };
 }
 
-function buildTabContext(tab, index, windowInfo, referenceMs) {
+function buildTabContext(tab, index, windowInfo, referenceMs, groupDetails) {
   const title = unescapeTitle(tab?.title ?? "");
   const url = typeof tab?.url === "string" ? tab.url : "";
   const favicon = typeof tab?.favIconUrl === "string" ? tab.favIconUrl : "";
   const urlDetails = parseUrlDetails(url);
+  const rawGroupId = typeof tab?.groupId === "number" ? tab.groupId : -1;
+  const group = rawGroupId >= 0 ? groupDetails?.[rawGroupId] ?? null : null;
 
   return {
     id: typeof tab?.id === "number" ? tab.id : null,
@@ -297,6 +370,12 @@ function buildTabContext(tab, index, windowInfo, referenceMs) {
     discarded: Boolean(tab?.discarded),
     incognito: Boolean(tab?.incognito),
     windowId: typeof tab?.windowId === "number" ? tab.windowId : null,
+    groupId: group?.id ?? (rawGroupId >= 0 ? rawGroupId : null),
+    groupTitle: group?.title ?? "",
+    groupColor: group?.color ?? "",
+    groupColorHex: group?.colorHex ?? "",
+    groupCollapsed: typeof group?.collapsed === "boolean" ? group.collapsed : null,
+    group,
     window: windowInfo,
     timestamps: toTabTimestamps(tab, referenceMs)
   };
@@ -306,7 +385,7 @@ function buildTabContext(tab, index, windowInfo, referenceMs) {
  * Creates the template context shared by the renderer and the options preview.
  *
  * @param {Array<import("webextension-polyfill").Tabs.Tab>} tabs
- * @param {{ window?: Partial<TemplateWindowContext>, now?: Date }} [options]
+ * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, tabGroups?: Record<number, unknown> }} [options]
  * @returns {{ context: TemplateContext, timestamp: TemplateTimestamp }}
  */
 export function buildTemplateContext(tabs = [], options = {}) {
@@ -314,9 +393,36 @@ export function buildTemplateContext(tabs = [], options = {}) {
   const timestamp = formatTimestamp(now);
   const windowInfo = normalizeWindow(options.window);
   const frontmatterFields = resolveFrontmatterFields(options.frontmatterFields);
+  const groupDetails = normalizeTabGroups(options.tabGroups);
 
-  const tabContexts = tabs.map((tab, index) => buildTabContext(tab, index, windowInfo, timestamp.epoch));
+  const tabContexts = tabs.map((tab, index) => buildTabContext(tab, index, windowInfo, timestamp.epoch, groupDetails));
   const frontmatter = buildFrontmatter(timestamp, tabContexts, windowInfo, frontmatterFields);
+
+  const groupedTabs = new Map();
+  tabContexts.forEach((tab) => {
+    if (tab.group && typeof tab.group.id === "number") {
+      if (!groupedTabs.has(tab.group.id)) {
+        groupedTabs.set(tab.group.id, []);
+      }
+      groupedTabs.get(tab.group.id).push(tab);
+    }
+  });
+
+  const groups = Array.from(groupedTabs.entries()).map(([id, grouped]) => {
+    const detail = groupDetails[id] ?? normalizeTabGroup({ id }, id) ?? { id, title: "", color: "", colorHex: "", collapsed: false, windowId: null };
+    return {
+      id: detail.id,
+      title: detail.title,
+      color: detail.color,
+      colorHex: detail.colorHex,
+      collapsed: Boolean(detail.collapsed),
+      windowId: detail.windowId,
+      tabCount: grouped.length,
+      tabs: grouped
+    };
+  });
+
+  const ungroupedTabs = tabContexts.filter((tab) => !tab.group);
 
   const context = {
     frontmatter,
@@ -328,6 +434,9 @@ export function buildTemplateContext(tabs = [], options = {}) {
     },
     window: windowInfo,
     tabs: tabContexts,
+    groups,
+    ungroupedTabs,
+    groupMap: groupDetails,
     frontmatterFields
   };
 
@@ -337,14 +446,15 @@ export function buildTemplateContext(tabs = [], options = {}) {
 /**
  * @param {Array<import("webextension-polyfill").Tabs.Tab>} tabs
  * @param {string} template
- * @param {{ window?: Partial<TemplateWindowContext>, now?: Date }} [options]
+ * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, tabGroups?: Record<number, unknown> }} [options]
  * @returns {{ markdown: string, formattedTimestamp: string }}
  */
 export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, options = {}) {
   const { context, timestamp } = buildTemplateContext(tabs, {
     window: options.window,
     now: options.now,
-    frontmatterFields: options.frontmatterFields
+    frontmatterFields: options.frontmatterFields,
+    tabGroups: options.tabGroups
   });
 
   try {
@@ -387,7 +497,8 @@ const SAMPLE_TABS = [
     discarded: false,
     incognito: false,
     lastAccessed: SAMPLE_NOW_MS - 5 * 60 * 1000,
-    windowId: SAMPLE_WINDOW.id
+    windowId: SAMPLE_WINDOW.id,
+    groupId: 1
   },
   {
     id: 2,
@@ -402,19 +513,69 @@ const SAMPLE_TABS = [
     discarded: false,
     incognito: false,
     lastAccessed: SAMPLE_NOW_MS - 2 * 60 * 60 * 1000,
+    windowId: SAMPLE_WINDOW.id,
+    groupId: 1
+  },
+  {
+    id: 3,
+    title: "Inspiration Board",
+    url: "https://www.figma.com/file/abc123/project-mockups",
+    favIconUrl: "https://static.figma.com/app/icon/1/icon-192.png",
+    active: false,
+    highlighted: false,
+    pinned: false,
+    audible: false,
+    muted: false,
+    discarded: false,
+    incognito: false,
+    lastAccessed: SAMPLE_NOW_MS - 30 * 60 * 1000,
+    windowId: SAMPLE_WINDOW.id,
+    groupId: 2
+  },
+  {
+    id: 4,
+    title: "API Reference",
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Clipboard",
+    favIconUrl: "https://developer.mozilla.org/static/img/favicon144.png",
+    active: false,
+    highlighted: false,
+    pinned: false,
+    audible: false,
+    muted: false,
+    discarded: false,
+    incognito: false,
+    lastAccessed: SAMPLE_NOW_MS - 10 * 60 * 1000,
     windowId: SAMPLE_WINDOW.id
   }
 ];
 
-export function createSampleTemplateContext(frontmatterFields) {
+const SAMPLE_GROUPS = {
+  1: {
+    id: 1,
+    title: "Research",
+    color: "blue",
+    collapsed: false,
+    windowId: SAMPLE_WINDOW.id
+  },
+  2: {
+    id: 2,
+    title: "Design",
+    color: "green",
+    collapsed: false,
+    windowId: SAMPLE_WINDOW.id
+  }
+};
+
+export function createSampleTemplateContext(frontmatterFields, tabGroups = SAMPLE_GROUPS) {
   return buildTemplateContext(SAMPLE_TABS, {
     window: SAMPLE_WINDOW,
     now: SAMPLE_NOW,
-    frontmatterFields
+    frontmatterFields,
+    tabGroups
   }).context;
 }
 
 /**
  * Sample template context that powers the live preview on the options page.
  */
-export const SAMPLE_TEMPLATE_CONTEXT = createSampleTemplateContext();
+export const SAMPLE_TEMPLATE_CONTEXT = createSampleTemplateContext(undefined, SAMPLE_GROUPS);

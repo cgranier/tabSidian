@@ -43,6 +43,23 @@ const BUILT_IN_PRESETS = [
 {{^timestamps.lastAccessed}}- Last visited: unknown{{/timestamps.lastAccessed}}
 
 {{/tabs}}`
+  },
+  {
+    id: "builtin:grouped",
+    name: "Grouped headings",
+    description: "Organises output by tab group when available.",
+    template: `{{{frontmatter}}}
+{{#groups}}
+## {{title}}
+{{#tabs}}- [{{title}}]({{url}})
+{{/tabs}}
+
+{{/groups}}
+{{#ungroupedTabs}}
+## {{title}}
+[{{url}}]({{url}})
+
+{{/ungroupedTabs}}`
   }
 ];
 
@@ -103,7 +120,8 @@ const state = {
     hasErrors: false,
     messages: []
   },
-  preferencesReady: false
+  preferencesReady: false,
+  pendingSilentSave: false
 };
 
 function createCustomPresetId() {
@@ -284,7 +302,10 @@ function queueSave(options = {}) {
     return;
   }
 
-  setStatusMessage("Saving changes…", "saving");
+  state.pendingSilentSave = silent;
+  if (!silent) {
+    setStatusMessage("Saving changes…", "saving");
+  }
   scheduleSave();
 }
 
@@ -920,6 +941,10 @@ function resetTemplatePreferences(options = {}) {
   });
   refreshPresetPicker(state.selectedPresetId);
   updateTemplatePreview();
+  const presetNameInput = elements.presetName();
+  if (presetNameInput) {
+    presetNameInput.value = "";
+  }
   if (!silent) {
     setStatusMessage("Templates reset.", "success");
   }
@@ -1018,7 +1043,11 @@ async function savePreferences() {
     [PRESET_STORAGE_KEY]: state.customPresets
   });
 
-  setStatusMessage("Changes saved.", "success");
+  const wasSilent = state.pendingSilentSave;
+  state.pendingSilentSave = false;
+  if (!wasSilent) {
+    setStatusMessage("Changes saved.", "success");
+  }
 }
 
 function attachEvents() {

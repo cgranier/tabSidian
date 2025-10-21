@@ -199,13 +199,17 @@
             <li><code>{{{frontmatter}}}</code> &mdash; pre-built YAML block that includes export date, time, tab count, and window metadata. Field names follow your configuration above.</li>
             <li><code>{{export.iso}}</code>, <code>{{export.local.date}}</code>, <code>{{export.local.time}}</code>, <code>{{export.filename}}</code>, <code>{{export.tabCount}}</code></li>
             <li><code>{{frontmatterFields.date}}</code>, <code>{{frontmatterFields.windowTitle}}</code>, etc. &mdash; resolved frontmatter key names.</li>
+            <li><code>{{groupTitle}}</code>, <code>{{group.color}}</code>, <code>{{group.colorHex}}</code>, <code>{{groupCollapsed}}</code> &mdash; tab group metadata when available.</li>
             <li><code>{{window.title}}</code>, <code>{{window.id}}</code>, <code>{{window.focused}}</code>, <code>{{window.incognito}}</code></li>
             <li>Inside <code>{{#tabs}}</code>: <code>{{title}}</code>, <code>{{url}}</code>, <code>{{origin}}</code>, <code>{{hostname}}</code>, <code>{{protocol}}</code>, <code>{{pathname}}</code>, <code>{{search}}</code>, <code>{{hash}}</code>, <code>{{favicon}}</code></li>
             <li>Tab helpers: <code>{{index}}</code>, <code>{{position}}</code>, <code>{{active}}</code>, <code>{{highlighted}}</code>, <code>{{pinned}}</code>, <code>{{audible}}</code>, <code>{{muted}}</code>, <code>{{discarded}}</code>, <code>{{incognito}}</code></li>
             <li>Timestamps: <code>{{timestamps.lastAccessed}}</code>, <code>{{timestamps.lastAccessedRelative}}</code></li>
           </ul>
           <p class="hint">
-            Use sections (<code>{{#favicon}}...{{/favicon}}</code>) and inverted sections (<code>{{^timestamps.lastAccessed}}</code>) for optional values. Triple mustaches (e.g. <code>{{{frontmatter}}}</code>) bypass HTML escaping.
+            Use sections (<code>{{#favicon}}...{{/favicon}}</code>) and inverted sections (<code>{{^timestamps.lastAccessed}}</code>) for optional values. Iterate groups with <code>{{#groups}}</code> (each exposes <code>{{tabs}}</code> and <code>{{tabCount}}</code>) and use <code>{{#ungroupedTabs}}</code> for everything else. Triple mustaches (e.g. <code>{{{frontmatter}}}</code>) bypass HTML escaping.
+          </p>
+          <p class="hint">
+            Firefox currently lacks tab group API support, so group-specific variables are only populated on Chromium-based browsers.
           </p>
         </div>
       </section>

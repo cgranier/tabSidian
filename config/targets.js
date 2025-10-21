@@ -133,10 +133,11 @@ export const TARGETS = {
   firefox: {
     downloadStrategy: "download",
     manifest: (manifest) => {
+      const sanitized = withoutPermissions(manifest, ["tabGroups"]);
       const base = {
-        ...manifest,
+        ...sanitized,
         manifest_version: 2,
-        permissions: uniqueArray([...(manifest.permissions ?? []), "downloads"]),
+        permissions: uniqueArray([...(sanitized.permissions ?? []), "downloads"]),
         optional_permissions: uniqueArray(manifest.optional_permissions ?? []),
         browser_action: {
           default_icon: manifest.action?.default_icon,
@@ -197,4 +198,11 @@ export function getTargetConfig(name) {
 
 export function listTargets() {
   return DEFAULT_TARGETS.slice();
+}
+function withoutPermissions(manifest, permissionsToRemove = []) {
+  const permitted = (manifest.permissions ?? []).filter((permission) => !permissionsToRemove.includes(permission));
+  return {
+    ...manifest,
+    permissions: uniqueArray(permitted)
+  };
 }

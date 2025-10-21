@@ -11,7 +11,7 @@
     "default_icon": "icon48.png",
     "default_title": "tabSidian"
   },
-  "permissions": ["tabs", "activeTab", "storage", "notifications", "clipboardWrite"],
+  "permissions": ["tabs", "activeTab", "storage", "notifications", "clipboardWrite", "tabGroups"],
   "optional_permissions": [],
   "options_ui": {
     "page": "options.html",

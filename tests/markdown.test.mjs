@@ -22,7 +22,8 @@ const SAMPLE_TABS = [
     discarded: false,
     incognito: false,
     lastAccessed: Date.parse("2024-01-01T12:00:00Z"),
-    windowId: 99
+    windowId: 99,
+    groupId: 1
   },
   {
     id: 11,
@@ -48,12 +49,23 @@ const SAMPLE_WINDOW = {
   focused: true
 };
 
+const SAMPLE_GROUPS = {
+  1: {
+    id: 1,
+    title: "Reading",
+    color: "blue",
+    collapsed: false,
+    windowId: SAMPLE_WINDOW.id
+  }
+};
+
 const FIXED_NOW = new Date("2025-10-20T19:58:28.460Z");
 
 test("formatTabsMarkdown renders the default template with frontmatter and headings", () => {
   const { markdown } = formatTabsMarkdown(SAMPLE_TABS, DEFAULT_MARKDOWN_FORMAT, {
     window: SAMPLE_WINDOW,
-    now: FIXED_NOW
+    now: FIXED_NOW,
+    tabGroups: SAMPLE_GROUPS
   });
 
   assert.match(markdown, /^---\n/);
@@ -66,7 +78,8 @@ test("buildTemplateContext exposes tab metadata and timestamps", () => {
   const now = new Date("2024-01-02T03:04:05Z");
   const { context } = buildTemplateContext(SAMPLE_TABS, {
     window: SAMPLE_WINDOW,
-    now
+    now,
+    tabGroups: SAMPLE_GROUPS
   });
 
   assert.equal(context.tabs.length, 2);
@@ -82,15 +95,35 @@ test("buildTemplateContext exposes tab metadata and timestamps", () => {
   assert.deepEqual(context.frontmatterFields, DEFAULT_FRONTMATTER_FIELDS);
 });
 
+test("buildTemplateContext includes tab group information", () => {
+  const { context } = buildTemplateContext(SAMPLE_TABS, {
+    window: SAMPLE_WINDOW,
+    now: FIXED_NOW,
+    tabGroups: SAMPLE_GROUPS
+  });
+
+  assert.equal(context.groups.length, 1);
+  const group = context.groups[0];
+  assert.equal(group.title, "Reading");
+  assert.equal(group.color, "blue");
+  assert.equal(group.tabCount, 1);
+  assert.equal(group.tabs[0].title, "Example <Tab>");
+  assert.equal(context.tabs[0].groupTitle, "Reading");
+  assert.equal(context.tabs[1].group, null);
+  assert.equal(context.groupMap[1].color, "blue");
+});
+
 test("formatTabsMarkdown falls back to the default template when rendering fails", () => {
   const invalidTemplate = "{{#tabs}}\n- {{title}}\n";
   const fallback = formatTabsMarkdown(SAMPLE_TABS, invalidTemplate, {
     window: SAMPLE_WINDOW,
-    now: FIXED_NOW
+    now: FIXED_NOW,
+    tabGroups: SAMPLE_GROUPS
   });
   const expected = formatTabsMarkdown(SAMPLE_TABS, DEFAULT_MARKDOWN_FORMAT, {
     window: SAMPLE_WINDOW,
-    now: FIXED_NOW
+    now: FIXED_NOW,
+    tabGroups: SAMPLE_GROUPS
   });
 
   assert.equal(fallback.markdown, expected.markdown);
@@ -110,7 +143,8 @@ test("formatTabsMarkdown respects custom frontmatter field names", () => {
   const { markdown } = formatTabsMarkdown(SAMPLE_TABS, DEFAULT_MARKDOWN_FORMAT, {
     window: SAMPLE_WINDOW,
     now: FIXED_NOW,
-    frontmatterFields: customFields
+    frontmatterFields: customFields,
+    tabGroups: SAMPLE_GROUPS
   });
 
   assert.ok(markdown.includes("date: 2025-20-10"));

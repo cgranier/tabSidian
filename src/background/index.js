@@ -370,6 +370,29 @@ async function notifyUser(title, message) {
   }
 }
 
+async function resolveTabGroups(tabs = []) {
+  const groups = {};
+  if (!browser?.tabGroups?.get) {
+    return groups;
+  }
+
+  const ids = [...new Set(tabs.map((tab) => (typeof tab.groupId === "number" ? tab.groupId : -1)).filter((id) => id >= 0))];
+  await Promise.all(
+    ids.map(async (groupId) => {
+      try {
+        const group = await browser.tabGroups.get(groupId);
+        if (group) {
+          groups[groupId] = group;
+        }
+      } catch (error) {
+        console.warn("tabSidian failed to resolve tab group", groupId, error);
+      }
+    })
+  );
+
+  return groups;
+}
+
 async function resolveUserPreferences() {
   const storage = await browser.storage.sync.get([
     "restrictedUrls",
@@ -412,7 +435,7 @@ async function resolveUserPreferences() {
 async function getActiveWindowTabs() {
   const windows = await browser.windows.getAll({ populate: true, windowTypes: ["normal"] });
   if (!windows || windows.length === 0) {
-    return { window: null, tabs: [] };
+    return { window: null, tabs: [], tabGroups: {} };
   }
   const focused = windows.find((windowItem) => windowItem.focused) ?? windows[0];
   const windowMeta = {
@@ -421,9 +444,21 @@ async function getActiveWindowTabs() {
     focused: Boolean(focused.focused),
     incognito: Boolean(focused.incognito)
   };
+  const tabs = focused.tabs ?? [];
+  const groupIds = [...new Set(tabs.map((tab) => (typeof tab.groupId === "number" ? tab.groupId : -1)).filter((id) => id >= 0))];
+  let tabGroups = {};
+  if (groupIds.length > 0 && browser?.tabGroups?.get) {
+    try {
+      tabGroups = await resolveTabGroups(tabs);
+    } catch (error) {
+      console.warn("tabSidian tab group lookup failed", error);
+      tabGroups = {};
+    }
+  }
   return {
     window: windowMeta,
-    tabs: focused.tabs ?? []
+    tabs,
+    tabGroups
   };
 }
 
@@ -554,7 +589,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
 
 async function handleClick() {
   const { restrictedUrls, markdownFormat, frontmatterFields, obsidian } = await resolveUserPreferences();
-  const { window: activeWindow, tabs } = await getActiveWindowTabs();
+  const { window: activeWindow, tabs, tabGroups } = await getActiveWindowTabs();
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
   if (tabsToProcess.length === 0) {
@@ -563,7 +598,8 @@ async function handleClick() {
 
   const { markdown, formattedTimestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
     window: activeWindow ?? undefined,
-    frontmatterFields
+    frontmatterFields,
+    tabGroups
   });
   const filename = `${formattedTimestamp}_OpenTabs.md`;
 

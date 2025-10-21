@@ -1,5 +1,6 @@
 # Ignore build outputs
 /dist/
+*.zip
 
 # Dependencies
 /node_modules/

@@ -17,125 +17,349 @@
 
       <div class="status-banner" data-status-message aria-live="polite"></div>
 
-      <section class="panel panel-general">
-        <div class="panel-header">
-          <h2>General</h2>
-          <p>Auto-save is enabled. Fields marked with * are required for direct Obsidian exports.</p>
-        </div>
-        <div class="field-grid two-column">
-          <label for="obsidianVault">Obsidian vault name*</label>
-          <input
-            type="text"
-            id="obsidianVault"
-            placeholder="My Obsidian Vault"
-            autocomplete="off"
-          />
+      <div class="settings-layout">
+        <nav class="settings-nav" role="tablist" aria-label="Settings sections">
+          <button
+            id="tab-general"
+            class="settings-tab"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            tabindex="0"
+            aria-controls="section-general"
+            data-section="general"
+          >
+            General
+          </button>
+          <button
+            id="tab-properties"
+            class="settings-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            tabindex="-1"
+            aria-controls="section-properties"
+            data-section="properties"
+          >
+            Properties
+          </button>
+          <button
+            id="tab-templates"
+            class="settings-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            tabindex="-1"
+            aria-controls="section-templates"
+            data-section="templates"
+          >
+            Templates
+          </button>
+          <button
+            id="tab-restricted"
+            class="settings-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            tabindex="-1"
+            aria-controls="section-restricted"
+            data-section="restricted"
+          >
+            Restricted URLs
+          </button>
+        </nav>
 
-          <label for="obsidianNotePath">Note path template*</label>
-          <input
-            type="text"
-            id="obsidianNotePath"
-            placeholder="tabSidian/tab-export-{timestamp}.md"
-            autocomplete="off"
-          />
-          <p class="hint full-width">
-            <strong>{timestamp}</strong> is replaced with the export timestamp. Paths must end with <strong>.md</strong> and are resolved inside your vault.
-          </p>
-        </div>
-        <div class="panel-footer">
-          <div class="about">
-            <span class="version">Version 1.8.2</span>
-            <span class="dot">•</span>
-            <a href="https://x.com/cgranier" target="_blank" rel="noreferrer">Contact</a>
-            <span class="dot">•</span>
-            <a href="https://github.com/cgranier/tabSidian" target="_blank" rel="noreferrer">Source</a>
-          </div>
-          <div class="reset-buttons">
-            <button id="resetGeneral" type="button">Reset General</button>
-            <button id="resetProperties" type="button">Reset Properties</button>
-            <button id="resetTemplates" type="button">Reset Templates</button>
-            <button id="resetRestricted" type="button">Reset Restricted URLs</button>
-            <button id="resetAll" type="button" class="danger">Reset All</button>
-          </div>
-        </div>
-      </section>
+        <main class="settings-main">
+          <section
+            id="section-general"
+            class="panel panel-general"
+            role="tabpanel"
+            aria-labelledby="tab-general"
+            data-section-panel="general"
+            tabindex="0"
+          >
+            <div class="panel-header">
+              <h2>General</h2>
+              <p>Auto-save is enabled. Fields marked with * are required for direct Obsidian exports.</p>
+            </div>
+            <div class="field-grid two-column">
+              <label for="obsidianVault">Obsidian vault name*</label>
+              <input
+                type="text"
+                id="obsidianVault"
+                placeholder="My Obsidian Vault"
+                autocomplete="off"
+              />
 
-      <section class="panel panel-properties">
-        <div class="panel-header">
-          <h2>Properties</h2>
-          <p>Customize the YAML keys generated in the export frontmatter.</p>
-        </div>
-        <div class="frontmatter-grid">
-          <label for="frontmatter-date">Export date</label>
-          <input
-            id="frontmatter-date"
-            type="text"
-            data-frontmatter-field="date"
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label="Frontmatter field name for export date"
-          />
-          <label for="frontmatter-time">Export time</label>
-          <input
-            id="frontmatter-time"
-            type="text"
-            data-frontmatter-field="time"
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label="Frontmatter field name for export time"
-          />
-          <label for="frontmatter-exportedAt">Exported at (ISO)</label>
-          <input
-            id="frontmatter-exportedAt"
-            type="text"
-            data-frontmatter-field="exportedAt"
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label="Frontmatter field name for exported at timestamp"
-          />
-          <label for="frontmatter-tabCount">Tab count</label>
-          <input
-            id="frontmatter-tabCount"
-            type="text"
-            data-frontmatter-field="tabCount"
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label="Frontmatter field name for tab count"
-          />
-          <label for="frontmatter-windowTitle">Window title</label>
-          <input
-            id="frontmatter-windowTitle"
-            type="text"
-            data-frontmatter-field="windowTitle"
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label="Frontmatter field name for window title"
-          />
-          <label for="frontmatter-windowIncognito">Window incognito</label>
-          <input
-            id="frontmatter-windowIncognito"
-            type="text"
-            data-frontmatter-field="windowIncognito"
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label="Frontmatter field name for window incognito state"
-          />
+              <label for="obsidianNotePath">Note path template*</label>
+              <input
+                type="text"
+                id="obsidianNotePath"
+                placeholder="tabSidian/tab-export-{timestamp}.md"
+                autocomplete="off"
+              />
+              <p class="hint full-width">
+                <strong>{timestamp}</strong> is replaced with the export timestamp. Paths must end with <strong>.md</strong> and are resolved inside your vault.
+              </p>
+            </div>
+            <div class="panel-footer">
+              <div class="about">
+                <span class="version">Version 1.8.2</span>
+                <span class="dot">•</span>
+                <a href="https://x.com/cgranier" target="_blank" rel="noreferrer">Contact</a>
+                <span class="dot">•</span>
+                <a href="https://github.com/cgranier/tabSidian" target="_blank" rel="noreferrer">Source</a>
+              </div>
+              <div class="reset-buttons">
+                <button id="resetGeneral" type="button">Reset General</button>
+                <button id="resetProperties" type="button">Reset Properties</button>
+                <button id="resetTemplates" type="button">Reset Templates</button>
+                <button id="resetRestricted" type="button">Reset Restricted URLs</button>
+                <button id="resetAll" type="button" class="danger">Reset All</button>
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="section-properties"
+            class="panel panel-properties"
+            role="tabpanel"
+            aria-labelledby="tab-properties"
+            data-section-panel="properties"
+            tabindex="-1"
+            hidden
+          >
+            <div class="panel-header">
+              <h2>Properties</h2>
+              <p>Customize the YAML keys generated in the export frontmatter.</p>
+            </div>
+            <div class="frontmatter-grid">
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-title"
+                  data-frontmatter-toggle="title"
+                  checked
+                  aria-controls="frontmatter-title"
+                  aria-label="Include title field in frontmatter"
+                />
+                <label for="frontmatter-title">Title field</label>
+              </div>
+              <input
+                id="frontmatter-title"
+                type="text"
+                data-frontmatter-field="title"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for capture title"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-date"
+                  data-frontmatter-toggle="date"
+                  checked
+                  aria-controls="frontmatter-date"
+                  aria-label="Include capture date in frontmatter"
+                />
+                <label for="frontmatter-date">Capture date</label>
+              </div>
+              <input
+                id="frontmatter-date"
+                type="text"
+                data-frontmatter-field="date"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for capture date"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-time"
+                  data-frontmatter-toggle="time"
+                  checked
+                  aria-controls="frontmatter-time"
+                  aria-label="Include capture time in frontmatter"
+                />
+                <label for="frontmatter-time">Capture time</label>
+              </div>
+              <input
+                id="frontmatter-time"
+                type="text"
+                data-frontmatter-field="time"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for capture time"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-exportedAt"
+                  data-frontmatter-toggle="exportedAt"
+                  checked
+                  aria-controls="frontmatter-exportedAt"
+                  aria-label="Include exported timestamp in frontmatter"
+                />
+                <label for="frontmatter-exportedAt">Exported at (ISO)</label>
+              </div>
+              <input
+                id="frontmatter-exportedAt"
+                type="text"
+                data-frontmatter-field="exportedAt"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for exported timestamp"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-tabCount"
+                  data-frontmatter-toggle="tabCount"
+                  checked
+                  aria-controls="frontmatter-tabCount"
+                  aria-label="Include tab count in frontmatter"
+                />
+                <label for="frontmatter-tabCount">Tab count</label>
+              </div>
+              <input
+                id="frontmatter-tabCount"
+                type="text"
+                data-frontmatter-field="tabCount"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for tab count"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-tags"
+                  data-frontmatter-toggle="tags"
+                  checked
+                  aria-controls="frontmatter-tagsField"
+                  aria-label="Include tags array in frontmatter"
+                />
+                <label for="frontmatter-tagsField">Tags field</label>
+              </div>
+              <input
+                id="frontmatter-tagsField"
+                type="text"
+                data-frontmatter-field="tags"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for tags"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-collections"
+                  data-frontmatter-toggle="collections"
+                  checked
+                  aria-controls="frontmatter-collectionsField"
+                  aria-label="Include collections array in frontmatter"
+                />
+                <label for="frontmatter-collectionsField">Collections field</label>
+              </div>
+              <input
+                id="frontmatter-collectionsField"
+                type="text"
+                data-frontmatter-field="collections"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for collections"
+              />
+              <div class="frontmatter-toggle">
+                <input
+                  type="checkbox"
+                  id="frontmatter-toggle-windowIncognito"
+                  data-frontmatter-toggle="windowIncognito"
+                  checked
+                  aria-controls="frontmatter-windowIncognito"
+                  aria-label="Include incognito flag in frontmatter"
+                />
+                <label for="frontmatter-windowIncognito">Incognito flag</label>
+              </div>
+              <input
+                id="frontmatter-windowIncognito"
+                type="text"
+                data-frontmatter-field="windowIncognito"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                aria-label="Frontmatter field name for incognito flag"
+              />
+            </div>
+        <div class="frontmatter-templates">
+          <div class="field-block">
+            <label for="frontmatterTitleTemplate">Default title template</label>
+            <textarea
+              id="frontmatterTitleTemplate"
+              rows="3"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              autocorrect="off"
+              aria-describedby="frontmatterTitleHint"
+            ></textarea>
+            <p id="frontmatterTitleHint" class="hint">
+              Use Mustache placeholders such as <code>{{{export.tabCount}}}</code>, <code>{{{export.local.date}}}</code>, or <code>{{{window.title}}}</code>.
+            </p>
+          </div>
+          <div class="field-block">
+            <label for="frontmatterTags">Default tags</label>
+            <textarea
+              id="frontmatterTags"
+              rows="4"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              autocorrect="off"
+              aria-describedby="frontmatterTagsHint"
+            ></textarea>
+            <p id="frontmatterTagsHint" class="hint">
+              One per line. Conditional tags are supported, e.g. <code>{{#window.incognito}}incognito{{/window.incognito}}</code>.
+            </p>
+          </div>
+          <div class="field-block">
+            <label for="frontmatterCollections">Collections or folders</label>
+            <textarea
+              id="frontmatterCollections"
+              rows="4"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              autocorrect="off"
+              aria-describedby="frontmatterCollectionsHint"
+            ></textarea>
+            <p id="frontmatterCollectionsHint" class="hint">
+              Optional. Rendered as a YAML array to help auto-file exports. Great for vault automations—try values like <code>Research/{{{export.local.date}}}</code> or conditionals to flag incognito saves.
+            </p>
+          </div>
+          <div class="template-feedback frontmatter-list-feedback" data-frontmatter-list-feedback aria-live="polite"></div>
         </div>
         <div class="template-feedback frontmatter-feedback" data-frontmatter-feedback aria-live="polite"></div>
-      </section>
+          </section>
 
-      <section class="panel panel-templates">
-        <div class="panel-header">
-          <h2>Templates</h2>
-          <p>Use Mustache-style placeholders to design the Markdown output. Rendering happens locally in a sandboxed engine.</p>
-        </div>
-        <div class="template-grid">
+          <section
+            id="section-templates"
+            class="panel panel-templates"
+            role="tabpanel"
+            aria-labelledby="tab-templates"
+            data-section-panel="templates"
+            tabindex="-1"
+            hidden
+          >
+            <div class="panel-header">
+              <h2>Templates</h2>
+              <p>Use Mustache-style placeholders to design the Markdown output. Rendering happens locally in a sandboxed engine.</p>
+            </div>
+            <div class="template-grid">
           <div class="template-editor">
             <div class="preset-row">
               <label for="presetFormats">Presets</label>
@@ -198,7 +422,7 @@
           <ul>
             <li><code>{{{frontmatter}}}</code> &mdash; pre-built YAML block that includes export date, time, tab count, and window metadata. Field names follow your configuration above.</li>
             <li><code>{{export.iso}}</code>, <code>{{export.local.date}}</code>, <code>{{export.local.time}}</code>, <code>{{export.filename}}</code>, <code>{{export.tabCount}}</code></li>
-            <li><code>{{frontmatterFields.date}}</code>, <code>{{frontmatterFields.windowTitle}}</code>, etc. &mdash; resolved frontmatter key names.</li>
+            <li><code>{{frontmatterFields.title}}</code>, <code>{{frontmatterFields.tags}}</code>, <code>{{frontmatterFields.collections}}</code>, etc. &mdash; resolved frontmatter key names.</li>
             <li><code>{{groupTitle}}</code>, <code>{{group.color}}</code>, <code>{{group.colorHex}}</code>, <code>{{groupCollapsed}}</code> &mdash; tab group metadata when available.</li>
             <li><code>{{window.title}}</code>, <code>{{window.id}}</code>, <code>{{window.focused}}</code>, <code>{{window.incognito}}</code></li>
             <li>Inside <code>{{#tabs}}</code>: <code>{{title}}</code>, <code>{{url}}</code>, <code>{{origin}}</code>, <code>{{hostname}}</code>, <code>{{protocol}}</code>, <code>{{pathname}}</code>, <code>{{search}}</code>, <code>{{hash}}</code>, <code>{{favicon}}</code></li>
@@ -212,20 +436,30 @@
             Firefox currently lacks tab group API support, so group-specific variables are only populated on Chromium-based browsers.
           </p>
         </div>
-      </section>
+          </section>
 
-      <section class="panel panel-restricted">
-        <div class="panel-header">
-          <h2>Restricted URLs</h2>
-          <p>Pages containing these substrings are skipped during exports. Place one entry per line.</p>
-        </div>
-        <textarea id="restrictedUrls" rows="12" spellcheck="false"></textarea>
-        <div class="restricted-toolbar">
-          <button id="restrictedImport" type="button">Import list</button>
-          <button id="restrictedExport" type="button">Export list</button>
-          <input type="file" id="restrictedImportInput" accept="text/plain,application/json" hidden />
-        </div>
-      </section>
+          <section
+            id="section-restricted"
+            class="panel panel-restricted"
+            role="tabpanel"
+            aria-labelledby="tab-restricted"
+            data-section-panel="restricted"
+            tabindex="-1"
+            hidden
+          >
+            <div class="panel-header">
+              <h2>Restricted URLs</h2>
+              <p>Pages containing these substrings are skipped during exports. Place one entry per line.</p>
+            </div>
+            <textarea id="restrictedUrls" rows="12" spellcheck="false"></textarea>
+            <div class="restricted-toolbar">
+              <button id="restrictedImport" type="button">Import list</button>
+              <button id="restrictedExport" type="button">Export list</button>
+              <input type="file" id="restrictedImportInput" accept="text/plain,application/json" hidden />
+            </div>
+          </section>
+        </main>
+      </div>
 
       <footer class="credits">
         <p>

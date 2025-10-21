@@ -46,7 +46,8 @@ The options page now ships with a sandboxed Mustache renderer. Templates can ref
 - All settings auto-save as you edit within the General, Properties, Templates, and Restricted URLs panels; each panel also has its own “Reset” button plus a global reset.
 
 - `{{{frontmatter}}}`, `{{export.iso}}`, `{{export.filename}}`, and `{{export.tabCount}}` for export metadata.
-- Frontmatter keys are configurable in the options UI; the active names are exposed via `{{frontmatterFields.date}}`, `{{frontmatterFields.time}}`, `{{frontmatterFields.exportedAt}}`, `{{frontmatterFields.tabCount}}`, `{{frontmatterFields.windowTitle}}`, and `{{frontmatterFields.windowIncognito}}`.
+- Flip the switches in the Properties panel to decide which frontmatter keys ship with each export; turn them all off to drop the frontmatter block entirely.
+- Frontmatter keys are configurable in the options UI; the active names are exposed via `{{frontmatterFields.title}}`, `{{frontmatterFields.date}}`, `{{frontmatterFields.time}}`, `{{frontmatterFields.exportedAt}}`, `{{frontmatterFields.tabCount}}`, `{{frontmatterFields.tags}}`, `{{frontmatterFields.collections}}`, and `{{frontmatterFields.windowIncognito}}`.
 - `{{window.title}}`, `{{window.id}}`, `{{window.focused}}`, and `{{window.incognito}}` for window context.
 - Tabs include group metadata when available: `{{groupTitle}}`, `{{group.color}}`, `{{group.colorHex}}`, etc., and you can iterate groups via `{{#groups}}...{{/groups}}`. (Firefox currently omits this API, so grouped headings will only appear on Chromium-based browsers.)
 - Inside `{{#tabs}}...{{/tabs}}`, use `{{title}}`, `{{url}}`, `{{hostname}}`, `{{origin}}`, `{{protocol}}`, `{{pathname}}`, `{{search}}`, and `{{hash}}`.

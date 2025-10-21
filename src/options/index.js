@@ -3,15 +3,28 @@ import {
   DEFAULT_MARKDOWN_FORMAT,
   DEFAULT_OBSIDIAN_NOTE_PATH,
   DEFAULT_RESTRICTED_URLS,
-  DEFAULT_FRONTMATTER_FIELDS
+  DEFAULT_FRONTMATTER_FIELDS,
+  DEFAULT_FRONTMATTER_ENABLED_FIELDS,
+  DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+  DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+  DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
 } from "../platform/defaults.js";
-import { createSampleTemplateContext, resolveFrontmatterFields } from "../platform/markdown.js";
+import {
+  createSampleTemplateContext,
+  resolveFrontmatterFields,
+  resolveFrontmatterEnabled
+} from "../platform/markdown.js";
 import { renderTemplate, validateTemplate } from "../platform/templateEngine.js";
 import { describePlatform, IS_SAFARI } from "../platform/runtime.js";
 import { sanitizeRestrictedUrls } from "../platform/tabFilters.js";
 
 const CURRENT_TEMPLATE_OPTION_ID = "custom:current";
 const PRESET_STORAGE_KEY = "templatePresets";
+const SECTION_STORAGE_KEY = "options:lastSection";
+const FRONTMATTER_TITLE_STORAGE_KEY = "frontmatterTitleTemplate";
+const FRONTMATTER_TAGS_STORAGE_KEY = "frontmatterTagTemplates";
+const FRONTMATTER_COLLECTIONS_STORAGE_KEY = "frontmatterCollectionTemplates";
+const FRONTMATTER_ENABLED_STORAGE_KEY = "frontmatterEnabledFields";
 
 const BUILT_IN_PRESETS = [
   {
@@ -85,6 +98,13 @@ const elements = {
   statusMessage: () => document.querySelector("[data-status-message]"),
   frontmatterInputs: () => document.querySelectorAll("[data-frontmatter-field]"),
   frontmatterFeedback: () => document.querySelector("[data-frontmatter-feedback]"),
+  frontmatterToggles: () => document.querySelectorAll("[data-frontmatter-toggle]"),
+  sectionTabs: () => document.querySelectorAll("[data-section]"),
+  sectionPanels: () => document.querySelectorAll("[data-section-panel]"),
+  frontmatterTitleTemplate: () => document.getElementById("frontmatterTitleTemplate"),
+  frontmatterTags: () => document.getElementById("frontmatterTags"),
+  frontmatterCollections: () => document.getElementById("frontmatterCollections"),
+  frontmatterListFeedback: () => document.querySelector("[data-frontmatter-list-feedback]"),
   resetGeneral: () => document.getElementById("resetGeneral"),
   resetProperties: () => document.getElementById("resetProperties"),
   resetTemplates: () => document.getElementById("resetTemplates"),
@@ -116,13 +136,140 @@ const state = {
     previewError: null
   },
   frontmatterFields: { ...DEFAULT_FRONTMATTER_FIELDS },
+  frontmatterEnabled: { ...DEFAULT_FRONTMATTER_ENABLED_FIELDS },
   frontmatterValidation: {
+    hasErrors: false,
+    messages: []
+  },
+  frontmatterTitleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+  frontmatterTagTemplates: [...DEFAULT_FRONTMATTER_TAG_TEMPLATES],
+  frontmatterCollectionTemplates: [...DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES],
+  frontmatterListValidation: {
     hasErrors: false,
     messages: []
   },
   preferencesReady: false,
   pendingSilentSave: false
 };
+
+function getSectionCollections() {
+  const tabs = Array.from(elements.sectionTabs() || []);
+  const panels = Array.from(elements.sectionPanels() || []);
+  return { tabs, panels };
+}
+
+function activateSection(sectionId, collections, { focusTab = true, storeSelection = false } = {}) {
+  const { tabs, panels } = collections;
+  if (tabs.length === 0 || panels.length === 0) {
+    return;
+  }
+
+  const fallback = tabs[0]?.dataset.section ?? null;
+  const available = new Set(panels.map((panel) => panel.dataset.sectionPanel));
+  const target = sectionId && available.has(sectionId) ? sectionId : fallback;
+
+  tabs.forEach((tab) => {
+    const isActive = tab.dataset.section === target;
+    tab.setAttribute("aria-selected", isActive ? "true" : "false");
+    tab.setAttribute("tabindex", isActive ? "0" : "-1");
+    if (isActive && focusTab) {
+      tab.focus();
+    }
+  });
+
+  panels.forEach((panel) => {
+    const isActive = panel.dataset.sectionPanel === target;
+    panel.hidden = !isActive;
+    panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+    panel.setAttribute("tabindex", isActive ? "0" : "-1");
+  });
+
+  if (storeSelection && target && browser?.storage?.local) {
+    browser.storage.local
+      .set({ [SECTION_STORAGE_KEY]: target })
+      .catch((error) => console.error("Unable to persist active section", error));
+  }
+}
+
+function initializeSectionNavigation() {
+  const collections = getSectionCollections();
+  const { tabs } = collections;
+  if (tabs.length === 0) {
+    return Promise.resolve();
+  }
+
+  const focusByIndex = (index, { storeSelection = false } = {}) => {
+    const normalized = (index + tabs.length) % tabs.length;
+    const targetTab = tabs[normalized];
+    if (!targetTab) {
+      return;
+    }
+    activateSection(targetTab.dataset.section, collections, {
+      focusTab: true,
+      storeSelection
+    });
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => {
+      activateSection(tab.dataset.section, collections, {
+        focusTab: true,
+        storeSelection: true
+      });
+    });
+
+    tab.addEventListener("keydown", (event) => {
+      switch (event.key) {
+        case "ArrowUp":
+        case "ArrowLeft":
+          event.preventDefault();
+          focusByIndex(index - 1, { storeSelection: true });
+          break;
+        case "ArrowDown":
+        case "ArrowRight":
+          event.preventDefault();
+          focusByIndex(index + 1, { storeSelection: true });
+          break;
+        case "Home":
+          event.preventDefault();
+          focusByIndex(0, { storeSelection: true });
+          break;
+        case "End":
+          event.preventDefault();
+          focusByIndex(tabs.length - 1, { storeSelection: true });
+          break;
+        case "Enter":
+        case " ":
+          event.preventDefault();
+          activateSection(tab.dataset.section, collections, {
+            focusTab: true,
+            storeSelection: true
+          });
+          break;
+        default:
+          break;
+      }
+    });
+  });
+
+  const restore = () => activateSection(undefined, collections, { focusTab: false });
+
+  if (!browser?.storage?.local) {
+    restore();
+    return Promise.resolve();
+  }
+
+  return browser.storage.local
+    .get(SECTION_STORAGE_KEY)
+    .then((stored) => {
+      const saved = stored && typeof stored[SECTION_STORAGE_KEY] === "string" ? stored[SECTION_STORAGE_KEY] : undefined;
+      activateSection(saved, collections, { focusTab: false });
+    })
+    .catch((error) => {
+      console.error("Unable to restore last viewed section", error);
+      restore();
+    });
+}
 
 function createCustomPresetId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -160,6 +307,17 @@ function parseMultiline(value) {
   return sanitizeRestrictedUrls(value.split("\n").map((entry) => entry.trim()));
 }
 
+function toTemplateMultiline(values = []) {
+  return values.filter((value) => typeof value === "string" && value.trim().length > 0).join("\n");
+}
+
+function parseTemplateMultiline(value) {
+  return value
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function debounce(fn, delay = 300) {
   let timeoutId;
   const debounced = (...args) => {
@@ -180,6 +338,7 @@ const FRONTMATTER_FIELD_KEYS = /** @type {Array<keyof typeof DEFAULT_FRONTMATTER
   Object.keys(DEFAULT_FRONTMATTER_FIELDS)
 );
 const FRONTMATTER_FIELD_PATTERN = /^[A-Za-z0-9_\-]+$/;
+const MAX_FRONTMATTER_LIST_ENTRIES = 50;
 
 function sanitizeFrontmatterInput(value) {
   return (value ?? "").trim();
@@ -273,6 +432,180 @@ function updateFrontmatterFeedback() {
   }
 }
 
+function setFrontmatterToggles(flags = DEFAULT_FRONTMATTER_ENABLED_FIELDS) {
+  const normalized = resolveFrontmatterEnabled(flags);
+  elements.frontmatterToggles().forEach((toggle) => {
+    if (!(toggle instanceof HTMLInputElement)) {
+      return;
+    }
+    const key = toggle.dataset.frontmatterToggle;
+    if (!key) {
+      return;
+    }
+    const isEnabled = normalized[key] !== false;
+    toggle.checked = isEnabled;
+  });
+  state.frontmatterEnabled = normalized;
+}
+
+function handleFrontmatterToggleChange(event) {
+  if (!(event.currentTarget instanceof HTMLInputElement)) {
+    return;
+  }
+  const toggle = event.currentTarget;
+  const key = toggle.dataset.frontmatterToggle;
+  if (!key) {
+    return;
+  }
+  state.frontmatterEnabled = resolveFrontmatterEnabled({
+    ...state.frontmatterEnabled,
+    [key]: toggle.checked
+  });
+  updateTemplatePreview();
+  queueSave({ silent: true });
+}
+
+function updateFrontmatterListsState() {
+  const result = validateFrontmatterTemplateLists();
+  if (result.hasErrors) {
+    scheduleSave.cancel();
+    return;
+  }
+  if (state.preferencesReady) {
+    queueSave({ silent: true });
+  }
+  updateTemplatePreview();
+}
+
+function updateFrontmatterListFeedback() {
+  const feedbackElement = elements.frontmatterListFeedback();
+  if (!feedbackElement) {
+    return;
+  }
+
+  const { hasErrors, messages } = state.frontmatterListValidation;
+  feedbackElement.textContent = "";
+  feedbackElement.classList.remove("is-error", "is-warning", "is-ok");
+
+  if (messages.length > 0) {
+    feedbackElement.textContent = [...new Set(messages)].join(" · ");
+  }
+
+  if (hasErrors) {
+    feedbackElement.classList.add("is-error");
+  } else if (messages.length > 0) {
+    feedbackElement.classList.add("is-warning");
+  }
+}
+
+function setFrontmatterTemplateInputs({
+  titleTemplate = DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+  tagTemplates = DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+  collectionTemplates = DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
+} = {}) {
+  const normalizedTitle =
+    typeof titleTemplate === "string" && titleTemplate.trim().length > 0
+      ? titleTemplate.trim()
+      : DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
+  const normalizedTags = Array.isArray(tagTemplates)
+    ? tagTemplates
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter((entry) => entry.length > 0)
+    : [...DEFAULT_FRONTMATTER_TAG_TEMPLATES];
+  const normalizedCollections = Array.isArray(collectionTemplates)
+    ? collectionTemplates
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter((entry) => entry.length > 0)
+    : [...DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES];
+
+  const titleInput = elements.frontmatterTitleTemplate();
+  if (titleInput instanceof HTMLTextAreaElement || titleInput instanceof HTMLInputElement) {
+    titleInput.value = normalizedTitle;
+    titleInput.setCustomValidity("");
+  }
+
+  const tagsInput = elements.frontmatterTags();
+  if (tagsInput instanceof HTMLTextAreaElement) {
+    tagsInput.value = toTemplateMultiline(normalizedTags);
+    tagsInput.setCustomValidity("");
+  }
+
+  const collectionsInput = elements.frontmatterCollections();
+  if (collectionsInput instanceof HTMLTextAreaElement) {
+    collectionsInput.value = toTemplateMultiline(normalizedCollections);
+    collectionsInput.setCustomValidity("");
+  }
+
+  state.frontmatterTitleTemplate = normalizedTitle;
+  state.frontmatterTagTemplates = [...normalizedTags];
+  state.frontmatterCollectionTemplates = [...normalizedCollections];
+  state.frontmatterListValidation = { hasErrors: false, messages: [] };
+  updateFrontmatterListFeedback();
+}
+
+function validateFrontmatterTemplateLists() {
+  const tagsInput = elements.frontmatterTags();
+  const collectionsInput = elements.frontmatterCollections();
+  const messages = [];
+  let hasErrors = false;
+
+  const parseAndNormalize = (input) => {
+    if (!(input instanceof HTMLTextAreaElement)) {
+      return [];
+    }
+
+    const entries = parseTemplateMultiline(input.value);
+    if (entries.length !== 0 || input.value.trim().length === 0) {
+      input.value = toTemplateMultiline(entries);
+    }
+    const unique = [];
+    const seen = new Set();
+    const duplicates = [];
+
+    entries.forEach((entry) => {
+      const key = entry.toLowerCase();
+      if (seen.has(key)) {
+        duplicates.push(entry);
+        return;
+      }
+      seen.add(key);
+      unique.push(entry);
+    });
+
+    if (unique.length > MAX_FRONTMATTER_LIST_ENTRIES) {
+      const message = `Use ${MAX_FRONTMATTER_LIST_ENTRIES} or fewer entries.`;
+      input.setCustomValidity(message);
+      messages.push(message);
+      hasErrors = true;
+      const limited = unique.slice(0, MAX_FRONTMATTER_LIST_ENTRIES);
+      input.value = toTemplateMultiline(limited);
+      return limited;
+    }
+
+    input.setCustomValidity("");
+
+    if (duplicates.length > 0) {
+      messages.push(`Duplicates removed: ${duplicates.join(", ")}`);
+    }
+
+    if (duplicates.length > 0 || entries.length !== unique.length) {
+      input.value = toTemplateMultiline(unique);
+    }
+
+    return unique;
+  };
+
+  const tagTemplates = parseAndNormalize(tagsInput);
+  const collectionTemplates = parseAndNormalize(collectionsInput);
+
+  state.frontmatterTagTemplates = [...tagTemplates];
+  state.frontmatterCollectionTemplates = [...collectionTemplates];
+  state.frontmatterListValidation = { hasErrors, messages };
+  updateFrontmatterListFeedback();
+
+  return { hasErrors };
+}
+
 const scheduleSave = debounce(() => {
   savePreferences().catch((error) => {
     console.error("Failed to persist preferences", error);
@@ -290,6 +623,14 @@ function queueSave(options = {}) {
     scheduleSave.cancel();
     if (!silent) {
       setStatusMessage("Resolve frontmatter field errors before saving.", "error");
+    }
+    return;
+  }
+
+  if (state.frontmatterListValidation.hasErrors) {
+    scheduleSave.cancel();
+    if (!silent) {
+      setStatusMessage("Resolve frontmatter list errors before saving.", "error");
     }
     return;
   }
@@ -607,7 +948,12 @@ function updatePresetButtons() {
 
 function updateTemplatePreview() {
   const template = elements.markdownFormat().value ?? "";
-  const sampleContext = createSampleTemplateContext(state.frontmatterFields);
+  const sampleContext = createSampleTemplateContext(state.frontmatterFields, undefined, {
+    frontmatterTitleTemplate: state.frontmatterTitleTemplate,
+    frontmatterTagTemplates: state.frontmatterTagTemplates,
+    frontmatterCollectionTemplates: state.frontmatterCollectionTemplates,
+    frontmatterEnabled: state.frontmatterEnabled
+  });
   const diagnostics = computeTemplateDiagnostics(template, sampleContext);
   state.diagnostics = diagnostics;
 
@@ -922,8 +1268,15 @@ function resetGeneralPreferences(options = {}) {
 function resetPropertyPreferences(options = {}) {
   const { silent = false } = options;
   setFrontmatterInputs(DEFAULT_FRONTMATTER_FIELDS);
+  setFrontmatterToggles(DEFAULT_FRONTMATTER_ENABLED_FIELDS);
   state.frontmatterFields = { ...DEFAULT_FRONTMATTER_FIELDS };
   state.frontmatterValidation = { hasErrors: false, messages: [] };
+  setFrontmatterTemplateInputs({
+    titleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+    tagTemplates: DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+    collectionTemplates: DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
+  });
+  state.frontmatterListValidation = { hasErrors: false, messages: [] };
   updateTemplatePreview();
   if (!silent) {
     setStatusMessage("Properties reset.", "success");
@@ -967,7 +1320,11 @@ async function loadPreferences() {
     "obsidianVault",
     "obsidianNotePath",
     "frontmatterFieldNames",
-    PRESET_STORAGE_KEY
+    PRESET_STORAGE_KEY,
+    FRONTMATTER_TITLE_STORAGE_KEY,
+    FRONTMATTER_TAGS_STORAGE_KEY,
+    FRONTMATTER_COLLECTIONS_STORAGE_KEY,
+    FRONTMATTER_ENABLED_STORAGE_KEY
   ]);
 
   const storedRestrictedRaw = Array.isArray(stored.restrictedUrls)
@@ -1007,6 +1364,29 @@ async function loadPreferences() {
   elements.obsidianNotePath().value = storedPath;
   setFrontmatterInputs(stored.frontmatterFieldNames ?? DEFAULT_FRONTMATTER_FIELDS);
 
+  const storedTitleTemplate =
+    typeof stored[FRONTMATTER_TITLE_STORAGE_KEY] === "string"
+      ? stored[FRONTMATTER_TITLE_STORAGE_KEY]
+      : DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
+  const storedTagTemplates = Array.isArray(stored[FRONTMATTER_TAGS_STORAGE_KEY])
+    ? stored[FRONTMATTER_TAGS_STORAGE_KEY].filter((entry) => typeof entry === "string")
+    : DEFAULT_FRONTMATTER_TAG_TEMPLATES;
+  const storedCollectionTemplates = Array.isArray(stored[FRONTMATTER_COLLECTIONS_STORAGE_KEY])
+    ? stored[FRONTMATTER_COLLECTIONS_STORAGE_KEY].filter((entry) => typeof entry === "string")
+    : DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES;
+  const storedEnabledFields =
+    stored && typeof stored[FRONTMATTER_ENABLED_STORAGE_KEY] === "object"
+      ? stored[FRONTMATTER_ENABLED_STORAGE_KEY]
+      : DEFAULT_FRONTMATTER_ENABLED_FIELDS;
+
+  setFrontmatterTemplateInputs({
+    titleTemplate: storedTitleTemplate,
+    tagTemplates: storedTagTemplates,
+    collectionTemplates: storedCollectionTemplates
+  });
+  setFrontmatterToggles(storedEnabledFields);
+  validateFrontmatterTemplateLists();
+
   refreshPresetPicker(state.selectedPresetId);
   if (matchedPreset) {
     const presetNameInput = elements.presetName();
@@ -1040,7 +1420,11 @@ async function savePreferences() {
     obsidianVault: obsidianPreferences.vault,
     obsidianNotePath: obsidianPreferences.notePath,
     frontmatterFieldNames: state.frontmatterFields,
-    [PRESET_STORAGE_KEY]: state.customPresets
+    [PRESET_STORAGE_KEY]: state.customPresets,
+    [FRONTMATTER_TITLE_STORAGE_KEY]: state.frontmatterTitleTemplate,
+    [FRONTMATTER_TAGS_STORAGE_KEY]: state.frontmatterTagTemplates,
+    [FRONTMATTER_COLLECTIONS_STORAGE_KEY]: state.frontmatterCollectionTemplates,
+    [FRONTMATTER_ENABLED_STORAGE_KEY]: state.frontmatterEnabled
   });
 
   const wasSilent = state.pendingSilentSave;
@@ -1070,6 +1454,50 @@ function attachEvents() {
       updateFrontmatterState();
     });
   });
+
+  elements.frontmatterToggles().forEach((toggle) => {
+    if (!(toggle instanceof HTMLInputElement)) {
+      return;
+    }
+    toggle.addEventListener("change", handleFrontmatterToggleChange);
+  });
+
+  const titleTemplateInput = elements.frontmatterTitleTemplate();
+  if (titleTemplateInput instanceof HTMLTextAreaElement || titleTemplateInput instanceof HTMLInputElement) {
+    titleTemplateInput.addEventListener("input", () => {
+      state.frontmatterTitleTemplate = titleTemplateInput.value;
+      queueSave({ silent: true });
+      updateTemplatePreview();
+    });
+    titleTemplateInput.addEventListener("blur", () => {
+      state.frontmatterTitleTemplate = titleTemplateInput.value.trim() || DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
+      titleTemplateInput.value = state.frontmatterTitleTemplate;
+      queueSave({ silent: true });
+      updateTemplatePreview();
+    });
+  }
+
+  const tagsInput = elements.frontmatterTags();
+  if (tagsInput instanceof HTMLTextAreaElement) {
+    tagsInput.addEventListener("input", () => {
+      updateFrontmatterListsState();
+    });
+    tagsInput.addEventListener("blur", () => {
+      updateFrontmatterListsState();
+    });
+  }
+
+  const collectionsInput = elements.frontmatterCollections();
+  if (collectionsInput instanceof HTMLTextAreaElement) {
+    collectionsInput.addEventListener("input", () => {
+      updateFrontmatterListsState();
+    });
+    collectionsInput.addEventListener("blur", () => {
+      updateFrontmatterListsState();
+    });
+  }
+
+  setFrontmatterToggles(state.frontmatterEnabled);
 
   const presetNameInput = elements.presetName();
   if (presetNameInput) {
@@ -1242,6 +1670,9 @@ function renderPlatformHint() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  initializeSectionNavigation().catch((error) => {
+    console.error("Unable to set up section navigation", error);
+  });
   attachEvents();
   renderPlatformHint();
   loadPreferences().catch((error) => {

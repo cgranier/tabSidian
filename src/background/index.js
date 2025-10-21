@@ -2,10 +2,18 @@ import browser from "../platform/browser.js";
 import {
   DEFAULT_MARKDOWN_FORMAT,
   DEFAULT_OBSIDIAN_NOTE_PATH,
-  DEFAULT_RESTRICTED_URLS
+  DEFAULT_RESTRICTED_URLS,
+  DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+  DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+  DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES,
+  DEFAULT_FRONTMATTER_ENABLED_FIELDS
 } from "../platform/defaults.js";
 import { deliverMarkdownFile } from "../platform/download.js";
-import { formatTabsMarkdown, resolveFrontmatterFields } from "../platform/markdown.js";
+import {
+  formatTabsMarkdown,
+  resolveFrontmatterFields,
+  resolveFrontmatterEnabled
+} from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, shouldProcessTab } from "../platform/tabFilters.js";
 import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
 
@@ -399,7 +407,11 @@ async function resolveUserPreferences() {
     "markdownFormat",
     "obsidianVault",
     "obsidianNotePath",
-    "frontmatterFieldNames"
+    "frontmatterFieldNames",
+    "frontmatterTitleTemplate",
+    "frontmatterTagTemplates",
+    "frontmatterCollectionTemplates",
+    "frontmatterEnabledFields"
   ]);
 
   const rawRestricted = Array.isArray(storage.restrictedUrls) && storage.restrictedUrls.length
@@ -419,11 +431,30 @@ async function resolveUserPreferences() {
   const frontmatterFields = resolveFrontmatterFields(
     storage && typeof storage.frontmatterFieldNames === "object" ? storage.frontmatterFieldNames : undefined
   );
+  const frontmatterTitleTemplate =
+    typeof storage.frontmatterTitleTemplate === "string" && storage.frontmatterTitleTemplate.trim().length > 0
+      ? storage.frontmatterTitleTemplate
+      : DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
+  const frontmatterTagTemplates = Array.isArray(storage.frontmatterTagTemplates)
+    ? storage.frontmatterTagTemplates.filter((entry) => typeof entry === "string")
+    : DEFAULT_FRONTMATTER_TAG_TEMPLATES;
+  const frontmatterCollectionTemplates = Array.isArray(storage.frontmatterCollectionTemplates)
+    ? storage.frontmatterCollectionTemplates.filter((entry) => typeof entry === "string")
+    : DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES;
+  const frontmatterEnabled = resolveFrontmatterEnabled(
+    storage && typeof storage.frontmatterEnabledFields === "object"
+      ? storage.frontmatterEnabledFields
+      : DEFAULT_FRONTMATTER_ENABLED_FIELDS
+  );
 
   return {
     restrictedUrls: sanitizeRestrictedUrls(rawRestricted),
     markdownFormat: format,
     frontmatterFields,
+    frontmatterEnabled,
+    frontmatterTitleTemplate,
+    frontmatterTagTemplates,
+    frontmatterCollectionTemplates,
     obsidian: {
       enabled: Boolean(obsidianVault && obsidianNotePath),
       vault: obsidianVault,
@@ -588,7 +619,16 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
 }
 
 async function handleClick() {
-  const { restrictedUrls, markdownFormat, frontmatterFields, obsidian } = await resolveUserPreferences();
+  const {
+    restrictedUrls,
+    markdownFormat,
+    frontmatterFields,
+    frontmatterEnabled,
+    frontmatterTitleTemplate,
+    frontmatterTagTemplates,
+    frontmatterCollectionTemplates,
+    obsidian
+  } = await resolveUserPreferences();
   const { window: activeWindow, tabs, tabGroups } = await getActiveWindowTabs();
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
@@ -599,7 +639,11 @@ async function handleClick() {
   const { markdown, formattedTimestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
     window: activeWindow ?? undefined,
     frontmatterFields,
-    tabGroups
+    frontmatterEnabled,
+    tabGroups,
+    frontmatterTitleTemplate,
+    frontmatterTagTemplates,
+    frontmatterCollectionTemplates
   });
   const filename = `${formattedTimestamp}_OpenTabs.md`;
 

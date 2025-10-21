@@ -75,13 +75,34 @@ import { renderTemplate } from "./templateEngine.js";
  */
 
 export const DEFAULT_FRONTMATTER_FIELDS = Object.freeze({
+  title: "title",
   date: "date_created",
   time: "time_created",
   exportedAt: "exported_at",
   tabCount: "tab_count",
-  windowTitle: "window_title",
+  tags: "tags",
+  collections: "collections",
   windowIncognito: "window_incognito"
 });
+
+export const DEFAULT_FRONTMATTER_ENABLED_FIELDS = Object.freeze({
+  title: true,
+  date: true,
+  time: true,
+  exportedAt: true,
+  tabCount: true,
+  tags: true,
+  collections: true,
+  windowIncognito: true
+});
+
+export const DEFAULT_FRONTMATTER_TITLE_TEMPLATE = Object.freeze(
+  "List of {{{export.tabCount}}} tabs saved on {{{export.local.date}}}"
+);
+
+export const DEFAULT_FRONTMATTER_TAG_TEMPLATES = Object.freeze(["tabsidian"]);
+
+export const DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES = Object.freeze([]);
 
 const TAB_GROUP_COLORS = Object.freeze({});
 
@@ -112,15 +133,7 @@ function formatTimestamp(now = new Date()) {
   const filename = `${year}-${month}-${day}T${hours}-${minutes}-${seconds}`;
   const iso = now.toISOString();
 
-  const localDate = now
-    .toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    })
-    .split("/")
-    .reverse()
-    .join("-");
+  const localDate = `${year}-${month}-${day}`;
 
   const localTime = now.toLocaleTimeString("en-US", {
     hour: "2-digit",
@@ -306,21 +319,160 @@ export function resolveFrontmatterFields(overrides = {}) {
   return normalized;
 }
 
-function buildFrontmatter(timestamp, tabs, windowInfo, fieldNames) {
-  const names = resolveFrontmatterFields(fieldNames);
-  const lines = [
-    "---",
-    `${names.date}: ${timestamp.local.date}`,
-    `${names.time}: ${timestamp.local.time}`,
-    `${names.exportedAt}: ${timestamp.iso}`,
-    `${names.tabCount}: ${tabs.length}`
-  ];
+export function resolveFrontmatterEnabled(overrides = {}) {
+  const normalized = { ...DEFAULT_FRONTMATTER_ENABLED_FIELDS };
+  Object.keys(DEFAULT_FRONTMATTER_ENABLED_FIELDS).forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+      normalized[key] = Boolean(overrides[key]);
+    }
+  });
+  return normalized;
+}
 
-  if (windowInfo.title) {
-    lines.push(`${names.windowTitle}: ${sanitizeYamlValue(windowInfo.title)}`);
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function createFrontmatterContext(timestamp, tabs, windowInfo) {
+  const tabCount = Array.isArray(tabs) ? tabs.length : 0;
+  return {
+    export: {
+      iso: timestamp.iso,
+      filename: timestamp.filename,
+      local: timestamp.local,
+      tabCount
+    },
+    window: {
+      title: windowInfo.title,
+      incognito: Boolean(windowInfo.incognito),
+      focused: Boolean(windowInfo.focused),
+      id: windowInfo.id ?? null
+    },
+    tabCount
+  };
+}
+
+function renderFrontmatterTemplate(template, context, fallback = "") {
+  if (typeof template !== "string") {
+    return fallback;
   }
 
-  lines.push(`${names.windowIncognito}: ${windowInfo.incognito ? "true" : "false"}`);
+  const trimmed = template.trim();
+  if (trimmed.length === 0) {
+    return fallback;
+  }
+
+  try {
+    const rendered = renderTemplate(trimmed, context);
+    const decoded = decodeHtmlEntities(rendered).trim();
+    return decoded.length > 0 ? decoded : fallback;
+  } catch (error) {
+    console.error("Unable to render frontmatter template", error);
+    return fallback;
+  }
+}
+
+function renderFrontmatterList(templates, context, fallbackTemplates) {
+  const candidate = Array.isArray(templates) ? templates : fallbackTemplates;
+  const source = Array.isArray(candidate) && candidate.length > 0 ? candidate : fallbackTemplates;
+  if (!Array.isArray(source)) {
+    return [];
+  }
+
+  const rendered = [];
+  const seen = new Set();
+
+  source.forEach((entry) => {
+    const value = renderFrontmatterTemplate(entry, context, "").trim();
+    if (value.length === 0) {
+      return;
+    }
+    const key = value.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    rendered.push(value);
+  });
+
+  return rendered;
+}
+
+function buildFrontmatter(timestamp, tabs, windowInfo, options = {}) {
+  const {
+    fieldNames,
+    titleTemplate = DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+    tagTemplates,
+    collectionTemplates,
+    enabledFields
+  } = options;
+
+  const names = resolveFrontmatterFields(fieldNames);
+  const enabled = resolveFrontmatterEnabled(enabledFields);
+  const activeKeys = Object.keys(enabled).filter((key) => enabled[key]);
+  if (activeKeys.length === 0) {
+    return "";
+  }
+  const context = createFrontmatterContext(timestamp, tabs, windowInfo);
+  const fallbackTitle = renderFrontmatterTemplate(DEFAULT_FRONTMATTER_TITLE_TEMPLATE, context, "");
+  const title = renderFrontmatterTemplate(titleTemplate, context, fallbackTitle || "Tab capture");
+  const tags = renderFrontmatterList(tagTemplates, context, DEFAULT_FRONTMATTER_TAG_TEMPLATES);
+  const collections = renderFrontmatterList(
+    collectionTemplates,
+    context,
+    DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
+  );
+
+  const lines = ["---"];
+
+  if (enabled.title) {
+    lines.push(`${names.title}: ${sanitizeYamlValue(title)}`);
+  }
+  if (enabled.date) {
+    lines.push(`${names.date}: ${timestamp.local.date}`);
+  }
+  if (enabled.time) {
+    lines.push(`${names.time}: ${timestamp.local.time}`);
+  }
+  if (enabled.exportedAt) {
+    lines.push(`${names.exportedAt}: ${timestamp.iso}`);
+  }
+  if (enabled.tabCount) {
+    lines.push(`${names.tabCount}: ${tabs.length}`);
+  }
+  if (enabled.windowIncognito) {
+    lines.push(`${names.windowIncognito}: ${windowInfo.incognito ? "true" : "false"}`);
+  }
+  if (enabled.tags) {
+    if (tags.length === 0) {
+      lines.push(`${names.tags}: []`);
+    } else {
+      lines.push(`${names.tags}:`);
+      tags.forEach((tag) => {
+        lines.push(`  - ${sanitizeYamlValue(tag)}`);
+      });
+    }
+  }
+  if (enabled.collections) {
+    if (collections.length === 0) {
+      lines.push(`${names.collections}: []`);
+    } else {
+      lines.push(`${names.collections}:`);
+      collections.forEach((entry) => {
+        lines.push(`  - ${sanitizeYamlValue(entry)}`);
+      });
+    }
+  }
+
+  if (lines.length === 1) {
+    return "";
+  }
+
   lines.push("---", "");
   return lines.join("\n");
 }
@@ -385,7 +537,7 @@ function buildTabContext(tab, index, windowInfo, referenceMs, groupDetails) {
  * Creates the template context shared by the renderer and the options preview.
  *
  * @param {Array<import("webextension-polyfill").Tabs.Tab>} tabs
- * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, tabGroups?: Record<number, unknown> }} [options]
+ * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, frontmatterEnabled?: Record<string, boolean>, tabGroups?: Record<number, unknown>, frontmatterTitleTemplate?: string, frontmatterTagTemplates?: Array<string>, frontmatterCollectionTemplates?: Array<string> }} [options]
  * @returns {{ context: TemplateContext, timestamp: TemplateTimestamp }}
  */
 export function buildTemplateContext(tabs = [], options = {}) {
@@ -393,10 +545,17 @@ export function buildTemplateContext(tabs = [], options = {}) {
   const timestamp = formatTimestamp(now);
   const windowInfo = normalizeWindow(options.window);
   const frontmatterFields = resolveFrontmatterFields(options.frontmatterFields);
+  const frontmatterEnabled = resolveFrontmatterEnabled(options.frontmatterEnabled);
   const groupDetails = normalizeTabGroups(options.tabGroups);
 
   const tabContexts = tabs.map((tab, index) => buildTabContext(tab, index, windowInfo, timestamp.epoch, groupDetails));
-  const frontmatter = buildFrontmatter(timestamp, tabContexts, windowInfo, frontmatterFields);
+  const frontmatter = buildFrontmatter(timestamp, tabContexts, windowInfo, {
+    fieldNames: frontmatterFields,
+    titleTemplate: options.frontmatterTitleTemplate,
+    tagTemplates: options.frontmatterTagTemplates,
+    collectionTemplates: options.frontmatterCollectionTemplates,
+    enabledFields: frontmatterEnabled
+  });
 
   const groupedTabs = new Map();
   tabContexts.forEach((tab) => {
@@ -437,7 +596,8 @@ export function buildTemplateContext(tabs = [], options = {}) {
     groups,
     ungroupedTabs,
     groupMap: groupDetails,
-    frontmatterFields
+    frontmatterFields,
+    frontmatterEnabled
   };
 
   return { context, timestamp };
@@ -446,7 +606,7 @@ export function buildTemplateContext(tabs = [], options = {}) {
 /**
  * @param {Array<import("webextension-polyfill").Tabs.Tab>} tabs
  * @param {string} template
- * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, tabGroups?: Record<number, unknown> }} [options]
+ * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, frontmatterEnabled?: Record<string, boolean>, tabGroups?: Record<number, unknown>, frontmatterTitleTemplate?: string, frontmatterTagTemplates?: Array<string>, frontmatterCollectionTemplates?: Array<string> }} [options]
  * @returns {{ markdown: string, formattedTimestamp: string }}
  */
 export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, options = {}) {
@@ -454,7 +614,11 @@ export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, opt
     window: options.window,
     now: options.now,
     frontmatterFields: options.frontmatterFields,
-    tabGroups: options.tabGroups
+    frontmatterEnabled: options.frontmatterEnabled,
+    tabGroups: options.tabGroups,
+    frontmatterTitleTemplate: options.frontmatterTitleTemplate,
+    frontmatterTagTemplates: options.frontmatterTagTemplates,
+    frontmatterCollectionTemplates: options.frontmatterCollectionTemplates
   });
 
   try {
@@ -566,12 +730,20 @@ const SAMPLE_GROUPS = {
   }
 };
 
-export function createSampleTemplateContext(frontmatterFields, tabGroups = SAMPLE_GROUPS) {
+export function createSampleTemplateContext(
+  frontmatterFields,
+  tabGroups = SAMPLE_GROUPS,
+  extras = {}
+) {
   return buildTemplateContext(SAMPLE_TABS, {
     window: SAMPLE_WINDOW,
     now: SAMPLE_NOW,
     frontmatterFields,
-    tabGroups
+    tabGroups,
+    frontmatterEnabled: extras.frontmatterEnabled,
+    frontmatterTitleTemplate: extras.frontmatterTitleTemplate,
+    frontmatterTagTemplates: extras.frontmatterTagTemplates,
+    frontmatterCollectionTemplates: extras.frontmatterCollectionTemplates
   }).context;
 }
 

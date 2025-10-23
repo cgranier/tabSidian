@@ -1,6 +1,7 @@
 # Ignore build outputs
 /dist/
 *.zip
+/versions/
 
 # Dependencies
 /node_modules/
@@ -33,3 +34,5 @@ coverage/
 # Existing custom ignores
 .cursorrules
 repomix-output.txt
+
+TODO.md

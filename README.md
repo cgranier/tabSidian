@@ -24,6 +24,15 @@ tabSidian turns the tabs in your current browser window into an Obsidian-friendl
 
 ## Installation
 
+Get the tabSidian extension from the official directory for your browser:
+
+- **[Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/tabsidian/gdnfbdjmfnpnjccfbppkbpjlpnppinba)**: For Microsoft Edge.
+- **[Chrome Web Store](https://chromewebstore.google.com/detail/tabsidian/khooafbfmbbcjcbbfdkpceobdkdgpoic)**: For Chrome, Brave, Arc, Orion, and other Chromium-based browsers.
+- **[Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/tabsidian/)**: For Firefox.
+- **[Safari Extensions](placeholder)**: For macOS, iOS, and iPadOS. - Coming soon.
+
+Download or install the version for your browser, then pin the tabSidian icon if you want quick access from the toolbar.
+
 Manual installation remains supported for development or side-loading builds:
 
 1. Clone the repository and install dependencies (`npm install`).

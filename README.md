@@ -14,6 +14,10 @@ tabSidian turns the tabs in your current browser window into an Obsidian-friendl
 - [Tips & Limitations](#tips--limitations)
 - [Author](#author)
 
+## Sample Output
+
+![Sample output](docs/images/tabsidian-sample-output.png)
+
 ## Features
 
 - Export focused window tabs to Markdown with frontmatter timestamps.
@@ -40,6 +44,8 @@ Manual installation remains supported for development or side-loading builds:
 3. Load the generated `dist/<browser>` folder as an unpacked extension for your browser (e.g., `chrome://extensions`, `edge://extensions`, `about:debugging#/runtime/this-firefox`).
 
 Latest packaged release: [tabSidian 2.0.0](versions/tabSidian_2.0.0.zip)
+
+📘 [Help & Usage Guide](docs/HELP.md)
 
 ## Usage
 

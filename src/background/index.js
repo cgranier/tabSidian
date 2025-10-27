@@ -16,8 +16,7 @@ import {
 } from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, shouldProcessTab } from "../platform/tabFilters.js";
 import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
-
-const OBSIDIAN_NEW_SCHEME = "obsidian://new";
+import { buildObsidianUrl, OBSIDIAN_NEW_SCHEME } from "../platform/obsidian.js";
 const NOTIFICATION_ICON = "icon128.png";
 // Windows and macOS custom protocol handlers begin rejecting requests above ~20k characters.
 // Firefox tolerates larger URIs, so it keeps the previous ~60k ceiling; Chromium-based builds use ~18k.
@@ -65,35 +64,6 @@ function canInvokeObsidian() {
     console.warn("tabSidian cannot construct an Obsidian URI", error);
     return false;
   }
-}
-
-function buildObsidianUrl({ vault, filepath, content, clipboard = false, overwrite = true, silent = false }) {
-  const params = new URLSearchParams();
-  params.set("file", filepath);
-  if (overwrite) {
-    params.set("overwrite", "true");
-  }
-  if (vault) {
-    params.set("vault", vault);
-  }
-  if (clipboard) {
-    params.set("clipboard", "true");
-  }
-  if (silent) {
-    params.set("silent", "true");
-  }
-
-  let query = params.toString();
-  if (typeof content === "string") {
-    const prefix = query.length > 0 ? "&" : "";
-    query = `${query}${prefix}content=${encodeURIComponent(content)}`;
-  }
-
-  const url = `${OBSIDIAN_NEW_SCHEME}?${query}`;
-  return {
-    url,
-    totalLength: url.length
-  };
 }
 
 async function getActiveTab() {

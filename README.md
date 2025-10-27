@@ -43,7 +43,7 @@ Manual installation remains supported for development or side-loading builds:
 2. Run `npm run build:<browser>` (see [Build Targets](#build-targets)).
 3. Load the generated `dist/<browser>` folder as an unpacked extension for your browser (e.g., `chrome://extensions`, `edge://extensions`, `about:debugging#/runtime/this-firefox`).
 
-Latest packaged release: [tabSidian 2.0.0](versions/tabSidian_2.0.0.zip)
+Latest packaged release: [tabSidian 2.0.1](versions/tabSidian_2.0.1.zip)
 
 📘 [Help & Usage Guide](docs/HELP.md)
 
@@ -135,7 +135,7 @@ Follow the steps below after running the relevant `npm run build:<browser>` comm
 
 - Use `dist/safari` as the WebExtension payload when creating a Safari Web Extension App in Xcode.
 - In Xcode, enable the `Share` entitlement if you rely on the Share Sheet fallback.
-- Increment the Xcode project version alongside the manifest version (`2.0.0`) before archiving.
+- Increment the Xcode project version alongside the manifest version (`2.0.1`) before archiving.
 - Export a signed `.pkg` or submit directly to App Store Connect for notarisation and distribution.
 
 ## Tips & Limitations

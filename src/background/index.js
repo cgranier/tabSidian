@@ -28,19 +28,81 @@ function sanitizeText(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function sanitizeNotePath(value) {
-  const sanitized = sanitizeText(value)
-    .replace(/\\/g, "/")
-    .split("/")
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0)
-    .join("/");
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+const VALID_SEGMENT_SEPARATOR = "/";
 
-  if (!sanitized) {
+function detectPlatform() {
+  const uaData = (typeof navigator !== "undefined" && navigator.userAgentData) || null;
+  const platform =
+    (uaData && Array.isArray(uaData.platforms) && uaData.platforms[0]) ||
+    (uaData && uaData.platform) ||
+    (typeof navigator !== "undefined" ? navigator.platform : "") ||
+    "";
+  const lower = platform.toLowerCase();
+  return {
+    isWindows: lower.includes("win"),
+    isMac: lower.includes("mac")
+  };
+}
+
+function sanitizeFileNameSegment(segment, { isWindows, isMac }) {
+  const base = typeof segment === "string" ? segment : "";
+  let sanitized = base.replace(/[#|\^\[\]]/g, "");
+
+  if (isWindows) {
+    sanitized = sanitized
+      .replace(/[<>:"/\\?*\x00-\x1F]/g, "")
+      .replace(/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i, "_$1$2")
+      .replace(/[\s.]+$/g, "");
+  } else if (isMac) {
+    sanitized = sanitized
+      .replace(/[/:\x00-\x1F]/g, "")
+      .replace(/^\./, "_");
+  } else {
+    sanitized = sanitized
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/^\./, "_");
+  }
+
+  sanitized = sanitized
+    .replace(/^\.+/, "")
+    .trim()
+    .slice(0, 245);
+
+  if (sanitized.length === 0) {
+    sanitized = "Untitled";
+  }
+
+  return sanitized;
+}
+
+function sanitizeNotePath(value) {
+  const normalized = sanitizeText(value)
+    .replace(/\\/g, VALID_SEGMENT_SEPARATOR)
+    .split(VALID_SEGMENT_SEPARATOR)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (normalized.length === 0) {
     return "";
   }
 
-  const withExtension = sanitized.toLowerCase().endsWith(".md") ? sanitized : `${sanitized}.md`;
+  const platformInfo = detectPlatform();
+
+  const sanitizedSegments = normalized.map((segment) => {
+    const sanitized = sanitizeFileNameSegment(segment, platformInfo);
+    if (platformInfo.isWindows) {
+      const base = sanitized.replace(/\.[^.]+$/, "");
+      if (WINDOWS_RESERVED.test(base)) {
+        const ext = sanitized.slice(base.length);
+        return `_${base}${ext}`;
+      }
+    }
+    return sanitized;
+  });
+
+  const sanitizedPath = sanitizedSegments.join(VALID_SEGMENT_SEPARATOR);
+  const withExtension = sanitizedPath.toLowerCase().endsWith(".md") ? sanitizedPath : `${sanitizedPath}.md`;
 
   if (/(^|\/)(\.{1,2})(\/|$)/.test(withExtension)) {
     return "";
@@ -49,22 +111,11 @@ function sanitizeNotePath(value) {
   return withExtension;
 }
 
-function sanitizeFilenameSegment(value) {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return "";
-  }
-  return trimmed.replace(/[\\/:*?"<>|]/g, "-");
-}
-
 function applyNotePathTemplate(notePath, formattedTimestamp, timestamp) {
   let resolved = notePath.replace(/\{timestamp\}/g, formattedTimestamp);
   if (timestamp && timestamp.local) {
-    const dateSegment = sanitizeFilenameSegment(timestamp.local.date);
-    const timeSegment = sanitizeFilenameSegment(timestamp.local.time);
+    const dateSegment = sanitizeFileNameSegment(timestamp.local.date, detectPlatform());
+    const timeSegment = sanitizeFileNameSegment(timestamp.local.time, detectPlatform());
     resolved = resolved.replace(/\{date\}/g, dateSegment).replace(/\{time\}/g, timeSegment);
   } else {
     resolved = resolved.replace(/\{date\}/g, formattedTimestamp).replace(/\{time\}/g, formattedTimestamp);

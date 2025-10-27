@@ -683,12 +683,57 @@ function updateFrontmatterState() {
   updateTemplatePreview();
 }
 
-const OBSIDIAN_VAULT_PATTERN = /^[\w-](?:[\w\- ]+)?$/u;
-const OBSIDIAN_NOTE_PATH_ALLOWED = /^[a-zA-Z0-9 _\-/\{\}\.\-]+$/;
 const OBSIDIAN_NOTE_PATH_INVALID_SEGMENT = /(^|\/)(\.{1,2})(\/|$)/;
+const OBSIDIAN_WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 
 function sanitizeTextInput(value) {
   return (value ?? "").trim();
+}
+
+function detectPlatform() {
+  const uaData = (typeof navigator !== "undefined" && (navigator).userAgentData) || null;
+  const platform =
+    (uaData && Array.isArray(uaData.platforms) && uaData.platforms[0]) ||
+    (uaData && uaData.platform) ||
+    (typeof navigator !== "undefined" ? navigator.platform : "") ||
+    "";
+  const lower = platform.toLowerCase();
+  return {
+    isWindows: lower.includes("win"),
+    isMac: lower.includes("mac")
+  };
+}
+
+function sanitizeFileNameSegment(fileName, { isWindows, isMac }) {
+  const base = typeof fileName === "string" ? fileName : "";
+
+  let sanitized = base.replace(/[#|\^\[\]]/g, "");
+
+  if (isWindows) {
+    sanitized = sanitized
+      .replace(/[<>:"/\\?*\x00-\x1F]/g, "")
+      .replace(/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i, "_$1$2")
+      .replace(/[\s.]+$/g, "");
+  } else if (isMac) {
+    sanitized = sanitized
+      .replace(/[/:\\x00-\\x1F]/g, "")
+      .replace(/^\./, "_");
+  } else {
+    sanitized = sanitized
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/^\./, "_");
+  }
+
+  sanitized = sanitized
+    .replace(/^\.+/, "")
+    .trim()
+    .slice(0, 245);
+
+  if (sanitized.length === 0) {
+    sanitized = "Untitled";
+  }
+
+  return sanitized;
 }
 
 function sanitizeNotePathInput(value) {
@@ -696,10 +741,22 @@ function sanitizeNotePathInput(value) {
     .replace(/\\/g, "/")
     .split("/")
     .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0)
-    .join("/");
+    .filter((segment) => segment.length > 0);
 
-  return normalized;
+  const platformInfo = detectPlatform();
+  const sanitizedSegments = normalized.map((segment, index) => {
+    const sanitized = sanitizeFileNameSegment(segment, platformInfo);
+    if (platformInfo.isWindows) {
+      const base = sanitized.replace(/\\.[^.]+$/, "");
+      if (OBSIDIAN_WINDOWS_RESERVED.test(base)) {
+        const ext = sanitized.slice(base.length);
+        return `_${base}${ext}`;
+      }
+    }
+    return sanitized;
+  });
+
+  return sanitizedSegments.join("/");
 }
 
 function sanitizeFormatInput(value, fallback) {
@@ -740,8 +797,10 @@ function validateObsidianPreferences() {
     return null;
   }
 
-  if (!OBSIDIAN_VAULT_PATTERN.test(rawVault)) {
-    vaultInput.setCustomValidity("Vault name may include letters, numbers, spaces, underscores, and hyphens.");
+  const platformInfo = detectPlatform();
+  const sanitizedVault = sanitizeFileNameSegment(rawVault, platformInfo);
+  if (sanitizedVault !== rawVault) {
+    vaultInput.setCustomValidity("Vault name contains characters Obsidian does not permit on this platform.");
     vaultInput.reportValidity();
     return null;
   }
@@ -763,14 +822,6 @@ function validateObsidianPreferences() {
 
   if (OBSIDIAN_NOTE_PATH_INVALID_SEGMENT.test(sanitizedPath)) {
     notePathInput.setCustomValidity("Note paths cannot traverse parent directories.");
-    notePathInput.reportValidity();
-    return null;
-  }
-
-  if (!OBSIDIAN_NOTE_PATH_ALLOWED.test(sanitizedPath)) {
-    notePathInput.setCustomValidity(
-      "Note paths may only include letters, numbers, spaces, hyphens, slashes, dots, and tokens like {timestamp}, {date}, {time}."
-    );
     notePathInput.reportValidity();
     return null;
   }

@@ -25,6 +25,7 @@ tabSidian turns the tabs in your current browser window into an Obsidian-friendl
 - Customize Markdown templates with presets from the options page.
 - Configure date and time formatting for exported metadata without touching code.
 - Filename templates can reference `{timestamp}`, `{date}`, and `{time}` to mirror your formatting.
+- Platform-aware sanitiser mirrors Obsidian’s rules for Unicode names and reserved characters.
 - Browser-aware download handling: standard downloads on Chromium/Firefox and Share Sheet integration on Safari.
 - Deterministic multi-browser builds from a unified codebase via Rollup.
 
@@ -45,7 +46,7 @@ Manual installation remains supported for development or side-loading builds:
 2. Run `npm run build:<browser>` (see [Build Targets](#build-targets)).
 3. Load the generated `dist/<browser>` folder as an unpacked extension for your browser (e.g., `chrome://extensions`, `edge://extensions`, `about:debugging#/runtime/this-firefox`).
 
-Latest packaged release: [tabSidian 2.1.1](versions/tabSidian_2.1.1.zip)
+Latest packaged release: [tabSidian 2.1.2](versions/tabSidian_2.1.2.zip)
 
 📘 [Help & Usage Guide](docs/HELP.md)
 
@@ -137,7 +138,7 @@ Follow the steps below after running the relevant `npm run build:<browser>` comm
 
 - Use `dist/safari` as the WebExtension payload when creating a Safari Web Extension App in Xcode.
 - In Xcode, enable the `Share` entitlement if you rely on the Share Sheet fallback.
-- Increment the Xcode project version alongside the manifest version (`2.1.1`) before archiving.
+- Increment the Xcode project version alongside the manifest version (`2.1.2`) before archiving.
 - Export a signed `.pkg` or submit directly to App Store Connect for notarisation and distribution.
 
 ## Tips & Limitations

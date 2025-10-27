@@ -647,3 +647,13 @@ if (actionApi?.onClicked?.addListener) {
 } else {
   console.error("tabSidian could not bind the browser action click handler.");
 }
+
+if (browser?.runtime?.onInstalled?.addListener) {
+  browser.runtime.onInstalled.addListener(({ reason }) => {
+    if (reason === "install" && browser?.runtime?.openOptionsPage) {
+      browser.runtime
+        .openOptionsPage()
+        .catch((error) => console.warn("tabSidian failed to open options page after install", error));
+    }
+  });
+}

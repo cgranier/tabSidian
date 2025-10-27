@@ -1,6 +1,6 @@
 {
   "name": "tabsidian",
-  "version": "2.0.1",
+  "version": "2.0.3",
   "description": "tabSidian cross-browser build and tooling",
   "private": true,
   "type": "module",

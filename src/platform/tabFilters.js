@@ -8,6 +8,13 @@ function isInternalUrl(url = "") {
   );
 }
 
+export function isRestrictedUrl(url = "", restricted = []) {
+  if (typeof url !== "string" || url.length === 0) {
+    return false;
+  }
+  return isInternalUrl(url) || matchesRestrictedUrl(url, restricted);
+}
+
 export function shouldProcessTab(tab, restrictedUrls = [], processOnlySelectedTabs = false) {
   if (!tab || typeof tab !== "object") {
     return false;
@@ -15,7 +22,7 @@ export function shouldProcessTab(tab, restrictedUrls = [], processOnlySelectedTa
 
   const url = tab.url ?? "";
 
-  if (tab.pinned || isInternalUrl(url) || matchesRestrictedUrl(url, restrictedUrls)) {
+  if (tab.pinned || isRestrictedUrl(url, restrictedUrls)) {
     return false;
   }
 

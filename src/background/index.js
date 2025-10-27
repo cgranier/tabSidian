@@ -14,7 +14,7 @@ import {
   resolveFrontmatterFields,
   resolveFrontmatterEnabled
 } from "../platform/markdown.js";
-import { sanitizeRestrictedUrls, shouldProcessTab } from "../platform/tabFilters.js";
+import { sanitizeRestrictedUrls, shouldProcessTab, isRestrictedUrl } from "../platform/tabFilters.js";
 import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
 import { buildObsidianUrl, OBSIDIAN_NEW_SCHEME } from "../platform/obsidian.js";
 const NOTIFICATION_ICON = "icon128.png";
@@ -603,6 +603,14 @@ async function handleClick() {
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
   if (tabsToProcess.length === 0) {
+    const activeTab = tabs.find((tab) => tab.active);
+    const activeUrl = typeof activeTab?.url === "string" ? activeTab.url : "";
+    if (activeUrl && isRestrictedUrl(activeUrl, restrictedUrls)) {
+      await notifyUser(
+        "tabSidian can’t run on this page",
+        "Browser system or extension pages don’t allow tab capture. Switch back to any website tab and try again."
+      );
+    }
     return;
   }
 

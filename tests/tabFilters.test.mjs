@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldProcessTab, sanitizeRestrictedUrls } from "../src/platform/tabFilters.js";
+import { shouldProcessTab, sanitizeRestrictedUrls, isRestrictedUrl } from "../src/platform/tabFilters.js";
 
 test("sanitizeRestrictedUrls removes empty values", () => {
   const result = sanitizeRestrictedUrls(["example.com", "", "   ", null, "docs"]);
@@ -26,4 +26,10 @@ test("shouldProcessTab respects highlighted tabs when multiple are selected", ()
 test("shouldProcessTab filters restricted URLs", () => {
   const tab = { highlighted: true, pinned: false, url: "https://mail.google.com" };
   assert.equal(shouldProcessTab(tab, ["mail.google.com"], false), false);
+});
+
+test("isRestrictedUrl detects internal and user-defined patterns", () => {
+  assert.equal(isRestrictedUrl("chrome://settings", []), true);
+  assert.equal(isRestrictedUrl("https://mail.google.com/inbox", ["mail.google.com"]), true);
+  assert.equal(isRestrictedUrl("https://example.com", ["mail.google.com"]), false);
 });

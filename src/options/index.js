@@ -475,13 +475,13 @@ function handleFrontmatterToggleChange(event) {
   queueSave({ silent: true });
 }
 
-function updateFrontmatterListsState() {
-  const result = validateFrontmatterTemplateLists();
-  if (result.hasErrors) {
+function updateFrontmatterListsState({ sanitize = true } = {}) {
+  const result = validateFrontmatterTemplateLists({ sanitize });
+  if (sanitize && result.hasErrors) {
     scheduleSave.cancel();
     return;
   }
-  if (state.preferencesReady) {
+  if (sanitize && state.preferencesReady) {
     queueSave({ silent: true });
   }
   updateTemplatePreview();
@@ -553,7 +553,7 @@ function setFrontmatterTemplateInputs({
   updateFrontmatterListFeedback();
 }
 
-function validateFrontmatterTemplateLists() {
+function validateFrontmatterTemplateLists({ sanitize = true } = {}) {
   const tagsInput = elements.frontmatterTags();
   const collectionsInput = elements.frontmatterCollections();
   const messages = [];
@@ -565,6 +565,11 @@ function validateFrontmatterTemplateLists() {
     }
 
     const entries = parseTemplateMultiline(input.value);
+    if (!sanitize) {
+      input.setCustomValidity("");
+      return entries;
+    }
+
     if (entries.length !== 0 || input.value.trim().length === 0) {
       input.value = toTemplateMultiline(entries);
     }
@@ -610,7 +615,7 @@ function validateFrontmatterTemplateLists() {
 
   state.frontmatterTagTemplates = [...tagTemplates];
   state.frontmatterCollectionTemplates = [...collectionTemplates];
-  state.frontmatterListValidation = { hasErrors, messages };
+  state.frontmatterListValidation = sanitize ? { hasErrors, messages } : { hasErrors: false, messages: [] };
   updateFrontmatterListFeedback();
 
   return { hasErrors };
@@ -764,7 +769,7 @@ function validateObsidianPreferences() {
 
   if (!OBSIDIAN_NOTE_PATH_ALLOWED.test(sanitizedPath)) {
     notePathInput.setCustomValidity(
-      "Note paths may only include letters, numbers, spaces, hyphens, slashes, dots, and {timestamp}."
+      "Note paths may only include letters, numbers, spaces, hyphens, slashes, dots, and tokens like {timestamp}, {date}, {time}."
     );
     notePathInput.reportValidity();
     return null;
@@ -1549,20 +1554,20 @@ function attachEvents() {
   const tagsInput = elements.frontmatterTags();
   if (tagsInput instanceof HTMLTextAreaElement) {
     tagsInput.addEventListener("input", () => {
-      updateFrontmatterListsState();
+      updateFrontmatterListsState({ sanitize: false });
     });
     tagsInput.addEventListener("blur", () => {
-      updateFrontmatterListsState();
+      updateFrontmatterListsState({ sanitize: true });
     });
   }
 
   const collectionsInput = elements.frontmatterCollections();
   if (collectionsInput instanceof HTMLTextAreaElement) {
     collectionsInput.addEventListener("input", () => {
-      updateFrontmatterListsState();
+      updateFrontmatterListsState({ sanitize: false });
     });
     collectionsInput.addEventListener("blur", () => {
-      updateFrontmatterListsState();
+      updateFrontmatterListsState({ sanitize: true });
     });
   }
 

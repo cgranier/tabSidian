@@ -6,7 +6,9 @@ import {
   DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
   DEFAULT_FRONTMATTER_TAG_TEMPLATES,
   DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES,
-  DEFAULT_FRONTMATTER_ENABLED_FIELDS
+  DEFAULT_FRONTMATTER_ENABLED_FIELDS,
+  DEFAULT_EXPORT_DATE_FORMAT,
+  DEFAULT_EXPORT_TIME_FORMAT
 } from "../platform/defaults.js";
 import { deliverMarkdownFile } from "../platform/download.js";
 import {
@@ -47,8 +49,37 @@ function sanitizeNotePath(value) {
   return withExtension;
 }
 
-function applyNotePathTemplate(notePath, formattedTimestamp) {
-  return notePath.replace(/\{timestamp\}/g, formattedTimestamp);
+function sanitizeFilenameSegment(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  return trimmed.replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function applyNotePathTemplate(notePath, formattedTimestamp, timestamp) {
+  let resolved = notePath.replace(/\{timestamp\}/g, formattedTimestamp);
+  if (timestamp && timestamp.local) {
+    const dateSegment = sanitizeFilenameSegment(timestamp.local.date);
+    const timeSegment = sanitizeFilenameSegment(timestamp.local.time);
+    resolved = resolved.replace(/\{date\}/g, dateSegment).replace(/\{time\}/g, timeSegment);
+  } else {
+    resolved = resolved.replace(/\{date\}/g, formattedTimestamp).replace(/\{time\}/g, formattedTimestamp);
+  }
+  return resolved;
+}
+
+function sanitizeFormatSetting(value, fallback) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+  return fallback;
 }
 
 function canInvokeObsidian() {
@@ -381,7 +412,9 @@ async function resolveUserPreferences() {
     "frontmatterTitleTemplate",
     "frontmatterTagTemplates",
     "frontmatterCollectionTemplates",
-    "frontmatterEnabledFields"
+    "frontmatterEnabledFields",
+    "exportDateFormat",
+    "exportTimeFormat"
   ]);
 
   const rawRestricted = Array.isArray(storage.restrictedUrls) && storage.restrictedUrls.length
@@ -416,6 +449,8 @@ async function resolveUserPreferences() {
       ? storage.frontmatterEnabledFields
       : DEFAULT_FRONTMATTER_ENABLED_FIELDS
   );
+  const exportDateFormat = sanitizeFormatSetting(storage.exportDateFormat, DEFAULT_EXPORT_DATE_FORMAT);
+  const exportTimeFormat = sanitizeFormatSetting(storage.exportTimeFormat, DEFAULT_EXPORT_TIME_FORMAT);
 
   return {
     restrictedUrls: sanitizeRestrictedUrls(rawRestricted),
@@ -425,6 +460,10 @@ async function resolveUserPreferences() {
     frontmatterTitleTemplate,
     frontmatterTagTemplates,
     frontmatterCollectionTemplates,
+    timestampFormats: {
+      dateFormat: exportDateFormat,
+      timeFormat: exportTimeFormat
+    },
     obsidian: {
       enabled: Boolean(obsidianVault && obsidianNotePath),
       vault: obsidianVault,
@@ -469,7 +508,7 @@ function selectTabs(tabs, restrictedUrls) {
   return tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs));
 }
 
-async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
+async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian }) {
   if (!obsidian?.enabled) {
     return { attempted: false, success: false };
   }
@@ -488,7 +527,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, obsidian }) {
     reason: clipboardResult.success ? undefined : clipboardResult.reason
   });
 
-  const resolvedNotePath = applyNotePathTemplate(obsidian.notePath, formattedTimestamp);
+  const resolvedNotePath = applyNotePathTemplate(obsidian.notePath, formattedTimestamp, timestamp);
   const baseParams = {
     vault: obsidian.vault,
     filepath: resolvedNotePath,
@@ -597,6 +636,7 @@ async function handleClick() {
     frontmatterTitleTemplate,
     frontmatterTagTemplates,
     frontmatterCollectionTemplates,
+    timestampFormats,
     obsidian
   } = await resolveUserPreferences();
   const { window: activeWindow, tabs, tabGroups } = await getActiveWindowTabs();
@@ -614,18 +654,19 @@ async function handleClick() {
     return;
   }
 
-  const { markdown, formattedTimestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
+  const { markdown, formattedTimestamp, timestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
     window: activeWindow ?? undefined,
     frontmatterFields,
     frontmatterEnabled,
     tabGroups,
     frontmatterTitleTemplate,
     frontmatterTagTemplates,
-    frontmatterCollectionTemplates
+    frontmatterCollectionTemplates,
+    timestampFormats
   });
   const filename = `${formattedTimestamp}_OpenTabs.md`;
 
-  const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, obsidian });
+  const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian });
   if (obsidianResult.success) {
     return;
   }

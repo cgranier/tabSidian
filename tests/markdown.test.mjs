@@ -138,6 +138,7 @@ test("formatTabsMarkdown falls back to the default template when rendering fails
 
   assert.equal(fallback.markdown, expected.markdown);
   assert.equal(fallback.formattedTimestamp, expected.formattedTimestamp);
+  assert.ok(fallback.timestamp);
 });
 
 test("formatTabsMarkdown respects custom frontmatter field names", () => {
@@ -198,6 +199,38 @@ test("buildTemplateContext omits frontmatter when all fields are disabled", () =
   });
 
   assert.ok(!markdown.startsWith("---"));
+});
+
+test("buildTemplateContext applies custom timestamp formats", () => {
+  const { context } = buildTemplateContext(SAMPLE_TABS, {
+    window: SAMPLE_WINDOW,
+    now: FIXED_NOW,
+    timestampFormats: {
+      dateFormat: "MMM DD, YYYY",
+      timeFormat: "hh:mm A"
+    }
+  });
+
+  assert.equal(context.export.local.date, "Oct 20, 2025");
+  const localHours24 = FIXED_NOW.getHours();
+  const localHours12 = localHours24 % 12 === 0 ? 12 : localHours24 % 12;
+  const expectedTime = `${String(localHours12).padStart(2, "0")}:${String(
+    FIXED_NOW.getMinutes()
+  ).padStart(2, "0")} ${localHours24 >= 12 ? "PM" : "AM"}`;
+  assert.equal(context.export.local.time, expectedTime);
+  assert.equal(context.export.local.formats.date, "MMM DD, YYYY");
+  assert.equal(context.export.local.formats.time, "hh:mm A");
+
+  const { context: altContext } = buildTemplateContext(SAMPLE_TABS, {
+    window: SAMPLE_WINDOW,
+    now: FIXED_NOW,
+    timestampFormats: {
+      dateFormat: "YYYY-MM-dddd",
+      timeFormat: "HH:mm"
+    }
+  });
+  const weekdayLong = FIXED_NOW.toLocaleString("en-US", { weekday: "long" });
+  assert.equal(altContext.export.local.date, `2025-10-${weekdayLong}`);
 });
 
 test("formatTabsMarkdown only includes enabled frontmatter fields", () => {

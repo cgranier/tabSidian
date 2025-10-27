@@ -480,6 +480,15 @@ button:disabled {
   margin: 4px 0 0;
 }
 
+.hint code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #1f2937;
+  background-color: rgba(148, 163, 184, 0.16);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
 .variable-docs {
   margin-top: 24px;
   font-size: 14px;

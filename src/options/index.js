@@ -7,7 +7,9 @@ import {
   DEFAULT_FRONTMATTER_ENABLED_FIELDS,
   DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
   DEFAULT_FRONTMATTER_TAG_TEMPLATES,
-  DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
+  DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES,
+  DEFAULT_EXPORT_DATE_FORMAT,
+  DEFAULT_EXPORT_TIME_FORMAT
 } from "../platform/defaults.js";
 import {
   createSampleTemplateContext,
@@ -25,6 +27,8 @@ const FRONTMATTER_TITLE_STORAGE_KEY = "frontmatterTitleTemplate";
 const FRONTMATTER_TAGS_STORAGE_KEY = "frontmatterTagTemplates";
 const FRONTMATTER_COLLECTIONS_STORAGE_KEY = "frontmatterCollectionTemplates";
 const FRONTMATTER_ENABLED_STORAGE_KEY = "frontmatterEnabledFields";
+const TIMESTAMP_DATE_FORMAT_STORAGE_KEY = "exportDateFormat";
+const TIMESTAMP_TIME_FORMAT_STORAGE_KEY = "exportTimeFormat";
 
 const BUILT_IN_PRESETS = [
   {
@@ -112,7 +116,9 @@ const elements = {
   resetAll: () => document.getElementById("resetAll"),
   platformHint: () => document.querySelector("[data-platform-hint]"),
   obsidianVault: () => document.getElementById("obsidianVault"),
-  obsidianNotePath: () => document.getElementById("obsidianNotePath")
+  obsidianNotePath: () => document.getElementById("obsidianNotePath"),
+  timestampDateFormat: () => document.getElementById("timestampDateFormat"),
+  timestampTimeFormat: () => document.getElementById("timestampTimeFormat")
 };
 
 const LEGACY_DEFAULT_RESTRICTED_URLS = [
@@ -147,6 +153,10 @@ const state = {
   frontmatterListValidation: {
     hasErrors: false,
     messages: []
+  },
+  timestampFormats: {
+    dateFormat: DEFAULT_EXPORT_DATE_FORMAT,
+    timeFormat: DEFAULT_EXPORT_TIME_FORMAT
   },
   preferencesReady: false,
   pendingSilentSave: false
@@ -687,6 +697,11 @@ function sanitizeNotePathInput(value) {
   return normalized;
 }
 
+function sanitizeFormatInput(value, fallback) {
+  const trimmed = (value ?? "").trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
 function resetValidity(...inputs) {
   inputs.forEach((input) => {
     if (input) {
@@ -952,7 +967,8 @@ function updateTemplatePreview() {
     frontmatterTitleTemplate: state.frontmatterTitleTemplate,
     frontmatterTagTemplates: state.frontmatterTagTemplates,
     frontmatterCollectionTemplates: state.frontmatterCollectionTemplates,
-    frontmatterEnabled: state.frontmatterEnabled
+    frontmatterEnabled: state.frontmatterEnabled,
+    timestampFormats: state.timestampFormats
   });
   const diagnostics = computeTemplateDiagnostics(template, sampleContext);
   state.diagnostics = diagnostics;
@@ -1258,6 +1274,18 @@ function resetGeneralPreferences(options = {}) {
   const { silent = false } = options;
   elements.obsidianVault().value = "";
   elements.obsidianNotePath().value = DEFAULT_OBSIDIAN_NOTE_PATH;
+  const dateFormatInput = elements.timestampDateFormat();
+  const timeFormatInput = elements.timestampTimeFormat();
+  if (dateFormatInput) {
+    dateFormatInput.value = DEFAULT_EXPORT_DATE_FORMAT;
+  }
+  if (timeFormatInput) {
+    timeFormatInput.value = DEFAULT_EXPORT_TIME_FORMAT;
+  }
+  state.timestampFormats = {
+    dateFormat: DEFAULT_EXPORT_DATE_FORMAT,
+    timeFormat: DEFAULT_EXPORT_TIME_FORMAT
+  };
   resetValidity(elements.obsidianVault(), elements.obsidianNotePath());
   if (!silent) {
     setStatusMessage("General settings reset.", "success");
@@ -1324,7 +1352,9 @@ async function loadPreferences() {
     FRONTMATTER_TITLE_STORAGE_KEY,
     FRONTMATTER_TAGS_STORAGE_KEY,
     FRONTMATTER_COLLECTIONS_STORAGE_KEY,
-    FRONTMATTER_ENABLED_STORAGE_KEY
+    FRONTMATTER_ENABLED_STORAGE_KEY,
+    TIMESTAMP_DATE_FORMAT_STORAGE_KEY,
+    TIMESTAMP_TIME_FORMAT_STORAGE_KEY
   ]);
 
   const storedRestrictedRaw = Array.isArray(stored.restrictedUrls)
@@ -1362,6 +1392,28 @@ async function loadPreferences() {
   elements.markdownFormat().value = markdownFormat;
   elements.obsidianVault().value = storedVault;
   elements.obsidianNotePath().value = storedPath;
+  const dateFormatInput = elements.timestampDateFormat();
+  const timeFormatInput = elements.timestampTimeFormat();
+  const storedDateFormatRaw =
+    typeof stored[TIMESTAMP_DATE_FORMAT_STORAGE_KEY] === "string"
+      ? stored[TIMESTAMP_DATE_FORMAT_STORAGE_KEY]
+      : "";
+  const storedTimeFormatRaw =
+    typeof stored[TIMESTAMP_TIME_FORMAT_STORAGE_KEY] === "string"
+      ? stored[TIMESTAMP_TIME_FORMAT_STORAGE_KEY]
+      : "";
+  const resolvedDateFormat = sanitizeFormatInput(storedDateFormatRaw, DEFAULT_EXPORT_DATE_FORMAT);
+  const resolvedTimeFormat = sanitizeFormatInput(storedTimeFormatRaw, DEFAULT_EXPORT_TIME_FORMAT);
+  if (dateFormatInput) {
+    dateFormatInput.value = resolvedDateFormat;
+  }
+  if (timeFormatInput) {
+    timeFormatInput.value = resolvedTimeFormat;
+  }
+  state.timestampFormats = {
+    dateFormat: resolvedDateFormat,
+    timeFormat: resolvedTimeFormat
+  };
   setFrontmatterInputs(stored.frontmatterFieldNames ?? DEFAULT_FRONTMATTER_FIELDS);
 
   const storedTitleTemplate =
@@ -1414,6 +1466,21 @@ async function savePreferences() {
     return;
   }
 
+  const dateFormatInput = elements.timestampDateFormat();
+  const timeFormatInput = elements.timestampTimeFormat();
+  const resolvedDateFormat = sanitizeFormatInput(dateFormatInput?.value, DEFAULT_EXPORT_DATE_FORMAT);
+  const resolvedTimeFormat = sanitizeFormatInput(timeFormatInput?.value, DEFAULT_EXPORT_TIME_FORMAT);
+  if (dateFormatInput) {
+    dateFormatInput.value = resolvedDateFormat;
+  }
+  if (timeFormatInput) {
+    timeFormatInput.value = resolvedTimeFormat;
+  }
+  state.timestampFormats = {
+    dateFormat: resolvedDateFormat,
+    timeFormat: resolvedTimeFormat
+  };
+
   await browser.storage.sync.set({
     restrictedUrls,
     markdownFormat,
@@ -1424,7 +1491,9 @@ async function savePreferences() {
     [FRONTMATTER_TITLE_STORAGE_KEY]: state.frontmatterTitleTemplate,
     [FRONTMATTER_TAGS_STORAGE_KEY]: state.frontmatterTagTemplates,
     [FRONTMATTER_COLLECTIONS_STORAGE_KEY]: state.frontmatterCollectionTemplates,
-    [FRONTMATTER_ENABLED_STORAGE_KEY]: state.frontmatterEnabled
+    [FRONTMATTER_ENABLED_STORAGE_KEY]: state.frontmatterEnabled,
+    [TIMESTAMP_DATE_FORMAT_STORAGE_KEY]: resolvedDateFormat,
+    [TIMESTAMP_TIME_FORMAT_STORAGE_KEY]: resolvedTimeFormat
   });
 
   const wasSilent = state.pendingSilentSave;
@@ -1581,6 +1650,46 @@ function attachEvents() {
       if (preferences) {
         queueSave();
       }
+    });
+  }
+
+  const dateFormatInput = elements.timestampDateFormat();
+  if (dateFormatInput) {
+    dateFormatInput.addEventListener("input", () => {
+      const value =
+        dateFormatInput.value && dateFormatInput.value.trim().length > 0
+          ? dateFormatInput.value.trim()
+          : DEFAULT_EXPORT_DATE_FORMAT;
+      state.timestampFormats.dateFormat = value;
+      updateTemplatePreview();
+      queueSave({ silent: true });
+    });
+    dateFormatInput.addEventListener("blur", () => {
+      const value = sanitizeFormatInput(dateFormatInput.value, DEFAULT_EXPORT_DATE_FORMAT);
+      dateFormatInput.value = value;
+      state.timestampFormats.dateFormat = value;
+      updateTemplatePreview();
+      queueSave();
+    });
+  }
+
+  const timeFormatInput = elements.timestampTimeFormat();
+  if (timeFormatInput) {
+    timeFormatInput.addEventListener("input", () => {
+      const value =
+        timeFormatInput.value && timeFormatInput.value.trim().length > 0
+          ? timeFormatInput.value.trim()
+          : DEFAULT_EXPORT_TIME_FORMAT;
+      state.timestampFormats.timeFormat = value;
+      updateTemplatePreview();
+      queueSave({ silent: true });
+    });
+    timeFormatInput.addEventListener("blur", () => {
+      const value = sanitizeFormatInput(timeFormatInput.value, DEFAULT_EXPORT_TIME_FORMAT);
+      timeFormatInput.value = value;
+      state.timestampFormats.timeFormat = value;
+      updateTemplatePreview();
+      queueSave();
     });
   }
 

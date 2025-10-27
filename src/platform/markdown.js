@@ -104,6 +104,9 @@ export const DEFAULT_FRONTMATTER_TAG_TEMPLATES = Object.freeze(["tabsidian"]);
 
 export const DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES = Object.freeze([]);
 
+export const DEFAULT_EXPORT_DATE_FORMAT = Object.freeze("YYYY-MM-DD");
+export const DEFAULT_EXPORT_TIME_FORMAT = Object.freeze("HH:mm:ss");
+
 const TAB_GROUP_COLORS = Object.freeze({});
 
 /** @type {TemplateWindowContext} */
@@ -121,7 +124,66 @@ export const DEFAULT_MARKDOWN_FORMAT = `{{{frontmatter}}}
 
 {{/tabs}}`;
 
-function formatTimestamp(now = new Date()) {
+function resolveLocale(candidate) {
+  if (typeof candidate === "string" && candidate.trim().length > 0) {
+    return candidate.trim();
+  }
+
+  if (typeof navigator !== "undefined" && typeof navigator.language === "string") {
+    return navigator.language;
+  }
+
+  return "en-US";
+}
+
+function formatDatePattern(date, pattern, locale) {
+  if (typeof pattern !== "string" || pattern.length === 0) {
+    return "";
+  }
+
+  const pad = (value) => value.toString().padStart(2, "0");
+  const localeToUse = resolveLocale(locale);
+  const year = date.getFullYear();
+  const monthIndex = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours24 = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  const monthLong = date.toLocaleString(localeToUse, { month: "long" });
+  const monthShort = date.toLocaleString(localeToUse, { month: "short" });
+  const weekdayLong = date.toLocaleString(localeToUse, { weekday: "long" });
+  const weekdayShort = date.toLocaleString(localeToUse, { weekday: "short" });
+
+  const replacements = Object.freeze({
+    YYYY: year.toString(),
+    YY: pad(year % 100),
+    MMMM: monthLong,
+    MMM: monthShort,
+    MM: pad(monthIndex),
+    M: monthIndex.toString(),
+    DD: pad(day),
+    D: day.toString(),
+    dddd: weekdayLong,
+    ddd: weekdayShort,
+    HH: pad(hours24),
+    H: hours24.toString(),
+    hh: pad(hours12),
+    h: hours12.toString(),
+    mm: pad(minutes),
+    m: minutes.toString(),
+    ss: pad(seconds),
+    s: seconds.toString(),
+    A: hours24 >= 12 ? "PM" : "AM",
+    a: hours24 >= 12 ? "pm" : "am"
+  });
+
+  const tokenRegex =
+    /(YYYY|YY|MMMM|MMM|MM|M|dddd|ddd|DD|D|HH|H|hh|h|mm|m|ss|s|A|a)/g;
+  return pattern.replace(tokenRegex, (token) => replacements[token] ?? token);
+}
+
+function formatTimestamp(now = new Date(), formats = {}) {
   const pad = (value) => value.toString().padStart(2, "0");
   const year = now.getFullYear();
   const month = pad(now.getMonth() + 1);
@@ -133,21 +195,29 @@ function formatTimestamp(now = new Date()) {
   const filename = `${year}-${month}-${day}T${hours}-${minutes}-${seconds}`;
   const iso = now.toISOString();
 
-  const localDate = `${year}-${month}-${day}`;
+  const dateFormat =
+    typeof formats.dateFormat === "string" && formats.dateFormat.trim().length > 0
+      ? formats.dateFormat.trim()
+      : DEFAULT_EXPORT_DATE_FORMAT;
+  const timeFormat =
+    typeof formats.timeFormat === "string" && formats.timeFormat.trim().length > 0
+      ? formats.timeFormat.trim()
+      : DEFAULT_EXPORT_TIME_FORMAT;
+  const locale = formats.locale;
 
-  const localTime = now.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  });
+  const localDate = formatDatePattern(now, dateFormat, locale) || formatDatePattern(now, DEFAULT_EXPORT_DATE_FORMAT, locale);
+  const localTime = formatDatePattern(now, timeFormat, locale) || formatDatePattern(now, DEFAULT_EXPORT_TIME_FORMAT, locale);
 
   return {
     iso,
     filename,
     local: {
       date: localDate,
-      time: localTime
+      time: localTime,
+      formats: {
+        date: dateFormat,
+        time: timeFormat
+      }
     },
     epoch: now.getTime()
   };
@@ -537,12 +607,12 @@ function buildTabContext(tab, index, windowInfo, referenceMs, groupDetails) {
  * Creates the template context shared by the renderer and the options preview.
  *
  * @param {Array<import("webextension-polyfill").Tabs.Tab>} tabs
- * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, frontmatterEnabled?: Record<string, boolean>, tabGroups?: Record<number, unknown>, frontmatterTitleTemplate?: string, frontmatterTagTemplates?: Array<string>, frontmatterCollectionTemplates?: Array<string> }} [options]
+ * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, frontmatterEnabled?: Record<string, boolean>, tabGroups?: Record<number, unknown>, frontmatterTitleTemplate?: string, frontmatterTagTemplates?: Array<string>, frontmatterCollectionTemplates?: Array<string>, timestampFormats?: { dateFormat?: string, timeFormat?: string, locale?: string } }} [options]
  * @returns {{ context: TemplateContext, timestamp: TemplateTimestamp }}
  */
 export function buildTemplateContext(tabs = [], options = {}) {
   const now = options.now instanceof Date ? options.now : new Date();
-  const timestamp = formatTimestamp(now);
+  const timestamp = formatTimestamp(now, options.timestampFormats);
   const windowInfo = normalizeWindow(options.window);
   const frontmatterFields = resolveFrontmatterFields(options.frontmatterFields);
   const frontmatterEnabled = resolveFrontmatterEnabled(options.frontmatterEnabled);
@@ -606,7 +676,7 @@ export function buildTemplateContext(tabs = [], options = {}) {
 /**
  * @param {Array<import("webextension-polyfill").Tabs.Tab>} tabs
  * @param {string} template
- * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, frontmatterEnabled?: Record<string, boolean>, tabGroups?: Record<number, unknown>, frontmatterTitleTemplate?: string, frontmatterTagTemplates?: Array<string>, frontmatterCollectionTemplates?: Array<string> }} [options]
+ * @param {{ window?: Partial<TemplateWindowContext>, now?: Date, frontmatterFields?: Record<string, string>, frontmatterEnabled?: Record<string, boolean>, tabGroups?: Record<number, unknown>, frontmatterTitleTemplate?: string, frontmatterTagTemplates?: Array<string>, frontmatterCollectionTemplates?: Array<string>, timestampFormats?: { dateFormat?: string, timeFormat?: string, locale?: string } }} [options]
  * @returns {{ markdown: string, formattedTimestamp: string }}
  */
 export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, options = {}) {
@@ -618,21 +688,24 @@ export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, opt
     tabGroups: options.tabGroups,
     frontmatterTitleTemplate: options.frontmatterTitleTemplate,
     frontmatterTagTemplates: options.frontmatterTagTemplates,
-    frontmatterCollectionTemplates: options.frontmatterCollectionTemplates
+    frontmatterCollectionTemplates: options.frontmatterCollectionTemplates,
+    timestampFormats: options.timestampFormats
   });
 
   try {
     const markdown = renderTemplate(template, context);
     return {
       markdown,
-      formattedTimestamp: timestamp.filename
+      formattedTimestamp: timestamp.filename,
+      timestamp
     };
   } catch (error) {
     console.error("tabSidian template rendering failed; falling back to default template.", error);
     const fallbackMarkdown = renderTemplate(DEFAULT_MARKDOWN_FORMAT, context);
     return {
       markdown: fallbackMarkdown,
-      formattedTimestamp: timestamp.filename
+      formattedTimestamp: timestamp.filename,
+      timestamp
     };
   }
 }
@@ -743,7 +816,8 @@ export function createSampleTemplateContext(
     frontmatterEnabled: extras.frontmatterEnabled,
     frontmatterTitleTemplate: extras.frontmatterTitleTemplate,
     frontmatterTagTemplates: extras.frontmatterTagTemplates,
-    frontmatterCollectionTemplates: extras.frontmatterCollectionTemplates
+    frontmatterCollectionTemplates: extras.frontmatterCollectionTemplates,
+    timestampFormats: extras.timestampFormats
   }).context;
 }
 

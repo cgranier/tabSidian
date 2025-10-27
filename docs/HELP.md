@@ -55,8 +55,12 @@ A copy of the file contents will also be placed on the system clipboard and you 
 - **Obsidian vault name**: Add the Obsidian vault name where you want your files saved to. Leave blank for manual file download.
 - **Note path template**: Controls where the Markdown file lands. `tabSidian/tab-export-{timestamp}.md` is the default.
   - Use `{timestamp}` to generate unique filenames.
+  - Apply `{date}` and `{time}` to insert your custom date/time formats.
   - Paths are relative to your vault root.
   - Keep the `.md` extension.
+- **Date format / Time format**: Customise the strings exposed as `{{{export.local.date}}}` and `{{{export.local.time}}}` in your templates.
+  - Defaults remain `YYYY-MM-DD` and `HH:mm:ss` for backwards compatibility.
+  - Supported tokens include `YYYY`, `YY`, `MMMM`, `MMM`, `MM`, `M`, `DD`, `D`, `dddd`, `ddd`, `HH`, `H`, `hh`, `h`, `mm`, `m`, `ss`, `s`, `A`, and `a`.
 
 ### Properties
 

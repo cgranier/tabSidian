@@ -120,14 +120,39 @@
                 autocomplete="off"
               />
               <p class="hint full-width">
-                <strong>{timestamp}</strong> is replaced with the export
-                timestamp. Paths must end with <strong>.md</strong> and are
-                resolved inside your vault.
+                <strong>{timestamp}</strong> is replaced with the default
+                timestamp (`YYYY-MM-DDTHH-mm-ss`). Use <strong>{date}</strong>
+                or <strong>{time}</strong> to insert your custom formats. Paths
+                must end with <strong>.md</strong> and are resolved inside your
+                vault.
+              </p>
+              <label for="timestampDateFormat">Date format</label>
+              <input
+                type="text"
+                id="timestampDateFormat"
+                placeholder="YYYY-MM-DD"
+                autocomplete="off"
+              />
+              <label for="timestampTimeFormat">Time format</label>
+              <input
+                type="text"
+                id="timestampTimeFormat"
+                placeholder="HH:mm:ss"
+                autocomplete="off"
+              />
+              <p class="hint full-width">
+                Supported tokens: <code>YYYY</code>, <code>YY</code>,
+                <code>MMMM</code>, <code>MMM</code>, <code>MM</code>,
+                <code>M</code>, <code>DD</code>, <code>D</code>,
+                <code>dddd</code>, <code>ddd</code>, <code>HH</code>,
+                <code>H</code>, <code>hh</code>, <code>h</code>,
+                <code>mm</code>, <code>m</code>, <code>ss</code>,
+                <code>s</code>, <code>A</code>, <code>a</code>.
               </p>
             </div>
             <div class="panel-footer">
               <div class="about">
-                <span class="version">Version 2.0.3</span>
+                <span class="version">Version 2.1.0</span>
                 <span class="dot">•</span>
                 <a
                   href="https://x.com/cgranier"

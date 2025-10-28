@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldProcessTab, sanitizeRestrictedUrls, isRestrictedUrl } from "../src/platform/tabFilters.js";
+import { shouldProcessTab, sanitizeRestrictedUrls, isRestrictedUrl, resolveTabUrl } from "../src/platform/tabFilters.js";
 
 test("sanitizeRestrictedUrls removes empty values", () => {
   const result = sanitizeRestrictedUrls(["example.com", "", "   ", null, "docs"]);
@@ -25,6 +25,40 @@ test("shouldProcessTab respects highlighted tabs when multiple are selected", ()
 
 test("shouldProcessTab filters restricted URLs", () => {
   const tab = { highlighted: true, pinned: false, url: "https://mail.google.com" };
+  assert.equal(shouldProcessTab(tab, ["mail.google.com"], false), false);
+});
+
+test("resolveTabUrl prefers pending URL for discarded internal tabs", () => {
+  const tab = {
+    discarded: true,
+    url: "chrome://discarded",
+    pendingUrl: "https://docs.arc.net/welcome"
+  };
+
+  assert.equal(resolveTabUrl(tab), "https://docs.arc.net/welcome");
+});
+
+test("shouldProcessTab includes discarded tabs with fallback URLs", () => {
+  const tab = {
+    discarded: true,
+    pinned: false,
+    highlighted: true,
+    url: "chrome://discarded",
+    pendingUrl: "https://example.com/page"
+  };
+
+  assert.equal(shouldProcessTab(tab, [], false), true);
+});
+
+test("shouldProcessTab still filters discarded tabs when fallback is restricted", () => {
+  const tab = {
+    discarded: true,
+    pinned: false,
+    highlighted: true,
+    url: "chrome://discarded",
+    pendingUrl: "https://mail.google.com/inbox"
+  };
+
   assert.equal(shouldProcessTab(tab, ["mail.google.com"], false), false);
 });
 

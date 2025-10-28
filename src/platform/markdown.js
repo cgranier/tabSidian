@@ -1,4 +1,5 @@
 import { renderTemplate } from "./templateEngine.js";
+import { resolveTabUrl } from "./tabFilters.js";
 
 /**
  * @typedef {Object} TemplateTimestamp
@@ -565,7 +566,7 @@ function toTabTimestamps(tab, referenceMs) {
 
 function buildTabContext(tab, index, windowInfo, referenceMs, groupDetails) {
   const title = unescapeTitle(tab?.title ?? "");
-  const url = typeof tab?.url === "string" ? tab.url : "";
+  const url = resolveTabUrl(tab);
   const favicon = typeof tab?.favIconUrl === "string" ? tab.favIconUrl : "";
   const urlDetails = parseUrlDetails(url);
   const rawGroupId = typeof tab?.groupId === "number" ? tab.groupId : -1;

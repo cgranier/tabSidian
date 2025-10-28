@@ -38,6 +38,26 @@ test("resolveTabUrl prefers pending URL for discarded internal tabs", () => {
   assert.equal(resolveTabUrl(tab), "https://docs.arc.net/welcome");
 });
 
+test("resolveTabUrl parses embedded discarded URL fragments", () => {
+  const tab = {
+    discarded: true,
+    url: "chrome://discarded/https://example.com/projects",
+    pendingUrl: ""
+  };
+
+  assert.equal(resolveTabUrl(tab), "https://example.com/projects");
+});
+
+test("resolveTabUrl decodes discarded query parameters", () => {
+  const tab = {
+    discarded: true,
+    url: "chrome://discarded?url=https%3A%2F%2Fexample.com%2Fencoded",
+    pendingUrl: ""
+  };
+
+  assert.equal(resolveTabUrl(tab), "https://example.com/encoded");
+});
+
 test("shouldProcessTab includes discarded tabs with fallback URLs", () => {
   const tab = {
     discarded: true,
@@ -50,6 +70,18 @@ test("shouldProcessTab includes discarded tabs with fallback URLs", () => {
   assert.equal(shouldProcessTab(tab, [], false), true);
 });
 
+test("shouldProcessTab includes discarded tabs extracted from placeholders", () => {
+  const tab = {
+    discarded: true,
+    pinned: false,
+    highlighted: true,
+    url: "chrome://discarded/https://example.com/from-placeholder",
+    pendingUrl: ""
+  };
+
+  assert.equal(shouldProcessTab(tab, [], false), true);
+});
+
 test("shouldProcessTab still filters discarded tabs when fallback is restricted", () => {
   const tab = {
     discarded: true,
@@ -57,6 +89,18 @@ test("shouldProcessTab still filters discarded tabs when fallback is restricted"
     highlighted: true,
     url: "chrome://discarded",
     pendingUrl: "https://mail.google.com/inbox"
+  };
+
+  assert.equal(shouldProcessTab(tab, ["mail.google.com"], false), false);
+});
+
+test("shouldProcessTab filters extracted placeholder URLs when restricted", () => {
+  const tab = {
+    discarded: true,
+    pinned: false,
+    highlighted: true,
+    url: "chrome://discarded/https://mail.google.com/inbox",
+    pendingUrl: ""
   };
 
   assert.equal(shouldProcessTab(tab, ["mail.google.com"], false), false);

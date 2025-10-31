@@ -30,6 +30,7 @@ function sanitizeText(value) {
 
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 const VALID_SEGMENT_SEPARATOR = "/";
+const NAVIGATION_VERIFICATION_DELAY_MS = 200;
 
 function detectPlatform() {
   const uaData = (typeof navigator !== "undefined" && navigator.userAgentData) || null;
@@ -158,13 +159,74 @@ async function getActiveTab() {
   }
 }
 
+function isBlankUrl(url) {
+  if (typeof url !== "string") {
+    return true;
+  }
+
+  const trimmed = url.trim();
+  return trimmed.length === 0 || trimmed === "about:blank";
+}
+
+// Chromium-based browsers (notably Vivaldi) will resolve `tabs.update`
+// even when they refuse to hand the custom protocol to the OS. In that
+// situation the tab reports the requested URL in `pendingUrl`, keeps its
+// visible `url` blank/about:blank, and sits forever in the "loading"
+// state. Detect that pattern so we can fall back to the new-tab transport.
+function isSuppressedNavigation(tabInfo, targetUrl) {
+  if (!tabInfo || typeof targetUrl !== "string") {
+    return false;
+  }
+
+  const pendingUrl = typeof tabInfo.pendingUrl === "string" ? tabInfo.pendingUrl : "";
+  const currentUrl = typeof tabInfo.url === "string" ? tabInfo.url : "";
+
+  if (pendingUrl !== targetUrl) {
+    return false;
+  }
+
+  if (!isBlankUrl(currentUrl)) {
+    return false;
+  }
+
+  if (typeof tabInfo.status === "string" && tabInfo.status !== "loading") {
+    return false;
+  }
+
+  return true;
+}
+
+async function verifyNavigationSucceeded(tabId, targetUrl) {
+  if (!browser?.tabs?.get) {
+    return true;
+  }
+
+  try {
+    const refreshed = await browser.tabs.get(tabId);
+    return !isSuppressedNavigation(refreshed, targetUrl);
+  } catch (error) {
+    console.warn("tabSidian could not verify Obsidian navigation state", error);
+    return false;
+  }
+}
+
 async function updateActiveTab(url, activeTab) {
   try {
     if (!activeTab?.id) {
       return { success: false, reason: "no_active_tab" };
     }
 
-    await browser.tabs.update(activeTab.id, { url });
+    const updatedTab = await browser.tabs.update(activeTab.id, { url });
+
+    if (isSuppressedNavigation(updatedTab, url)) {
+      await new Promise((resolve) => setTimeout(resolve, NAVIGATION_VERIFICATION_DELAY_MS));
+      const verified = await verifyNavigationSucceeded(activeTab.id, url);
+      if (!verified) {
+        emitMetric("obsidian_export_navigation_blocked", { reason: "tab_update_suppressed" });
+        return { success: false, reason: "tab_update_suppressed" };
+      }
+    }
+
     emitMetric("obsidian_export_navigation", { transport: "tab_update" });
     return { success: true, transport: "tab_update" };
   } catch (error) {

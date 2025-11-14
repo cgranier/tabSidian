@@ -115,6 +115,7 @@ const elements = {
   resetRestricted: () => document.getElementById("resetRestricted"),
   resetAll: () => document.getElementById("resetAll"),
   platformHint: () => document.querySelector("[data-platform-hint]"),
+  extensionVersion: () => document.querySelector("[data-extension-version]"),
   obsidianVault: () => document.getElementById("obsidianVault"),
   obsidianNotePath: () => document.getElementById("obsidianNotePath"),
   timestampDateFormat: () => document.getElementById("timestampDateFormat"),
@@ -685,6 +686,12 @@ function updateFrontmatterState() {
 
 const OBSIDIAN_NOTE_PATH_INVALID_SEGMENT = /(^|\/)(\.{1,2})(\/|$)/;
 const OBSIDIAN_WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+const OBSIDIAN_INVALID_CHAR_COMMON = /[#|\^\[\]]/g;
+const OBSIDIAN_INVALID_CHAR_WINDOWS = /[<>:"/\\?*\x00-\x1F]/g;
+const OBSIDIAN_INVALID_CHAR_MAC = /[/:\x00-\x1F]/g;
+const OBSIDIAN_INVALID_CHAR_OTHER = /[<>:"/\\|?*\x00-\x1F]/g;
+const OBSIDIAN_WINDOWS_TRAILING_CHARS = /[\s.]+$/;
+const OBSIDIAN_LEADING_DOTS_PATTERN = /^\.+/;
 
 function sanitizeTextInput(value) {
   return (value ?? "").trim();
@@ -707,25 +714,21 @@ function detectPlatform() {
 function sanitizeFileNameSegment(fileName, { isWindows, isMac }) {
   const base = typeof fileName === "string" ? fileName : "";
 
-  let sanitized = base.replace(/[#|\^\[\]]/g, "");
+  let sanitized = base.replace(OBSIDIAN_INVALID_CHAR_COMMON, "");
 
   if (isWindows) {
     sanitized = sanitized
-      .replace(/[<>:"/\\?*\x00-\x1F]/g, "")
+      .replace(OBSIDIAN_INVALID_CHAR_WINDOWS, "")
       .replace(/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i, "_$1$2")
-      .replace(/[\s.]+$/g, "");
+      .replace(OBSIDIAN_WINDOWS_TRAILING_CHARS, "");
   } else if (isMac) {
-    sanitized = sanitized
-      .replace(/[/:\\x00-\\x1F]/g, "")
-      .replace(/^\./, "_");
+    sanitized = sanitized.replace(OBSIDIAN_INVALID_CHAR_MAC, "").replace(/^\./, "_");
   } else {
-    sanitized = sanitized
-      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
-      .replace(/^\./, "_");
+    sanitized = sanitized.replace(OBSIDIAN_INVALID_CHAR_OTHER, "").replace(/^\./, "_");
   }
 
   sanitized = sanitized
-    .replace(/^\.+/, "")
+    .replace(OBSIDIAN_LEADING_DOTS_PATTERN, "")
     .trim()
     .slice(0, 245);
 
@@ -747,7 +750,7 @@ function sanitizeNotePathInput(value) {
   const sanitizedSegments = normalized.map((segment, index) => {
     const sanitized = sanitizeFileNameSegment(segment, platformInfo);
     if (platformInfo.isWindows) {
-      const base = sanitized.replace(/\\.[^.]+$/, "");
+      const base = sanitized.replace(/\.[^.]+$/, "");
       if (OBSIDIAN_WINDOWS_RESERVED.test(base)) {
         const ext = sanitized.slice(base.length);
         return `_${base}${ext}`;
@@ -757,6 +760,104 @@ function sanitizeNotePathInput(value) {
   });
 
   return sanitizedSegments.join("/");
+}
+
+function collectInvalidCharacters(value, regex, collector) {
+  if (!value) {
+    return;
+  }
+  const matches = value.match(regex);
+  if (matches) {
+    matches.forEach((char) => collector.add(char));
+  }
+}
+
+function formatInvalidCharacterList(characters) {
+  if (!Array.isArray(characters) || characters.length === 0) {
+    return "";
+  }
+  const tokens = characters.map((char) => {
+    if (char === " ") {
+      return "spaces";
+    }
+    if (char === "\t") {
+      return "tabs";
+    }
+    if (char === "\n") {
+      return "line breaks";
+    }
+    if (char === "\r") {
+      return "carriage returns";
+    }
+    const codePoint = char.codePointAt(0);
+    if (typeof codePoint === "number" && (codePoint < 32 || codePoint === 127)) {
+      return `control U+${codePoint.toString(16).padStart(4, "0")}`;
+    }
+    return "'" + char + "'";
+  });
+
+  if (tokens.length === 1) {
+    return tokens[0];
+  }
+  if (tokens.length === 2) {
+    return `${tokens[0]} or ${tokens[1]}`;
+  }
+  return `${tokens.slice(0, -1).join(", ")}, or ${tokens[tokens.length - 1]}`;
+}
+
+function describeVaultNameIssues(rawVault, sanitizedVault, platformInfo) {
+  const invalidCharacters = new Set();
+  collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_COMMON, invalidCharacters);
+  if (platformInfo.isWindows) {
+    collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_WINDOWS, invalidCharacters);
+  } else if (platformInfo.isMac) {
+    collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_MAC, invalidCharacters);
+  } else {
+    collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_OTHER, invalidCharacters);
+  }
+
+  return {
+    invalidCharacters: [...invalidCharacters],
+    trailingCharacters: platformInfo.isWindows ? OBSIDIAN_WINDOWS_TRAILING_CHARS.test(rawVault) : false,
+    leadingDots: OBSIDIAN_LEADING_DOTS_PATTERN.test(rawVault),
+    reservedName: platformInfo.isWindows
+      ? /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(rawVault)
+      : false,
+    tooLong: rawVault.length > 245,
+    replacedCompletely: sanitizedVault === "Untitled"
+  };
+}
+
+function buildVaultNameErrorMessage(rawVault, sanitizedVault, platformInfo) {
+  const issues = describeVaultNameIssues(rawVault, sanitizedVault, platformInfo);
+  const platformLabel = platformInfo.isWindows ? "Windows" : platformInfo.isMac ? "macOS" : "this platform";
+  const parts = [];
+
+  if (issues.invalidCharacters.length > 0) {
+    const characters = formatInvalidCharacterList(issues.invalidCharacters);
+    parts.push(`cannot include ${characters} on ${platformLabel}.`);
+  }
+  if (issues.trailingCharacters) {
+    parts.push("cannot end with spaces or periods on Windows.");
+  }
+  if (issues.leadingDots) {
+    parts.push("cannot start with '.' or only contain dots.");
+  }
+  if (issues.reservedName) {
+    parts.push("cannot use Windows-reserved device names (con, prn, aux, nul, com1-com9, lpt1-lpt9).");
+  }
+  if (issues.tooLong) {
+    parts.push("must be 245 characters or fewer.");
+  }
+  if (issues.replacedCompletely && parts.length === 0) {
+    parts.push("only contains characters Obsidian rejects.");
+  }
+
+  if (parts.length === 0) {
+    return "Vault name contains characters Obsidian does not permit on this platform.";
+  }
+
+  return `Vault name ${parts.join(" ")}`;
 }
 
 function sanitizeFormatInput(value, fallback) {
@@ -800,7 +901,7 @@ function validateObsidianPreferences() {
   const platformInfo = detectPlatform();
   const sanitizedVault = sanitizeFileNameSegment(rawVault, platformInfo);
   if (sanitizedVault !== rawVault) {
-    vaultInput.setCustomValidity("Vault name contains characters Obsidian does not permit on this platform.");
+    vaultInput.setCustomValidity(buildVaultNameErrorMessage(rawVault, sanitizedVault, platformInfo));
     vaultInput.reportValidity();
     return null;
   }
@@ -1834,12 +1935,24 @@ function renderPlatformHint() {
   hintElement.hidden = false;
 }
 
+function renderExtensionVersion() {
+  const versionElement = elements.extensionVersion();
+  if (!versionElement || !browser?.runtime?.getManifest) {
+    return;
+  }
+  const manifest = browser.runtime.getManifest();
+  if (manifest?.version) {
+    versionElement.textContent = `Version ${manifest.version}`;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initializeSectionNavigation().catch((error) => {
     console.error("Unable to set up section navigation", error);
   });
   attachEvents();
   renderPlatformHint();
+  renderExtensionVersion();
   loadPreferences().catch((error) => {
     console.error("Unable to load stored preferences", error);
     setStatusMessage("Unable to load stored preferences.", "error");

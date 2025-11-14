@@ -7,8 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const BASE_MANIFEST_PATH = path.join(ROOT_DIR, "src", "manifest.base.json");
+const PACKAGE_JSON_PATH = path.join(ROOT_DIR, "package.json");
 
 let cachedBaseManifest;
+let cachedPackageMetadata;
 
 function clone(value) {
   if (typeof globalThis.structuredClone === "function") {
@@ -24,8 +26,19 @@ export async function loadBaseManifest() {
   return clone(cachedBaseManifest);
 }
 
+async function loadPackageMetadata() {
+  if (!cachedPackageMetadata) {
+    cachedPackageMetadata = await fs.readJson(PACKAGE_JSON_PATH);
+  }
+  return { ...cachedPackageMetadata };
+}
+
 export async function generateManifest(targetName) {
   const baseManifest = await loadBaseManifest();
+  const { version } = await loadPackageMetadata();
+  if (version) {
+    baseManifest.version = version;
+  }
   const target = getTargetConfig(targetName);
   if (typeof target.manifest !== "function") {
     return { manifest: baseManifest, target };
@@ -36,5 +49,6 @@ export async function generateManifest(targetName) {
 
 export const paths = {
   root: ROOT_DIR,
-  baseManifest: BASE_MANIFEST_PATH
+  baseManifest: BASE_MANIFEST_PATH,
+  packageJson: PACKAGE_JSON_PATH
 };

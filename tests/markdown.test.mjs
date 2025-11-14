@@ -84,6 +84,22 @@ test("formatTabsMarkdown renders the default template with frontmatter and headi
   assert.ok(markdown.includes("[https://docs.example.com/]"));
 });
 
+test("formatTabsMarkdown escapes dollar signs while preserving quotes", () => {
+  const dollarTabs = [
+    {
+      ...SAMPLE_TABS[0],
+      title: 'Joey Bada$$ to release "Lonely At The Top" album'
+    }
+  ];
+
+  const { markdown } = formatTabsMarkdown(dollarTabs, DEFAULT_MARKDOWN_FORMAT, {
+    window: SAMPLE_WINDOW,
+    now: FIXED_NOW
+  });
+
+  assert.ok(markdown.includes('Joey Bada\\$\\$ to release "Lonely At The Top" album'));
+});
+
 test("buildTemplateContext exposes tab metadata and timestamps", () => {
   const now = new Date("2024-01-02T03:04:05Z");
   const { context } = buildTemplateContext(SAMPLE_TABS, {

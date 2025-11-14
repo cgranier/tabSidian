@@ -272,6 +272,13 @@ function unescapeTitle(rawTitle) {
   return withoutHashes.length > 0 ? withoutHashes : trimmed;
 }
 
+function escapeMarkdownMathDelimiters(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return "";
+  }
+  return value.replace(/\$/g, "\\$");
+}
+
 function parseUrlDetails(rawUrl = "") {
   try {
     const parsed = new URL(rawUrl);
@@ -300,7 +307,7 @@ function normalizeWindow(windowInfo) {
     return { ...EMPTY_WINDOW };
   }
 
-  const title = typeof windowInfo.title === "string" ? windowInfo.title.trim() : "";
+  const title = typeof windowInfo.title === "string" ? escapeMarkdownMathDelimiters(windowInfo.title.trim()) : "";
   return {
     id: typeof windowInfo.id === "number" ? windowInfo.id : null,
     title,
@@ -316,7 +323,7 @@ function normalizeTabGroup(rawGroup, fallbackId) {
 
   const id = typeof rawGroup.id === "number" ? rawGroup.id : typeof fallbackId === "number" ? fallbackId : null;
   const color = typeof rawGroup.color === "string" ? rawGroup.color : "";
-  const title = typeof rawGroup.title === "string" ? rawGroup.title : "";
+  const title = typeof rawGroup.title === "string" ? escapeMarkdownMathDelimiters(rawGroup.title) : "";
   let colorHex = "";
   if (typeof rawGroup.colorCode === "string" && rawGroup.colorCode.length > 0) {
     colorHex = rawGroup.colorCode;
@@ -405,7 +412,8 @@ function decodeHtmlEntities(value) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&#36;/g, "$");
 }
 
 function createFrontmatterContext(timestamp, tabs, windowInfo) {
@@ -564,7 +572,7 @@ function toTabTimestamps(tab, referenceMs) {
 }
 
 function buildTabContext(tab, index, windowInfo, referenceMs, groupDetails) {
-  const title = unescapeTitle(tab?.title ?? "");
+  const title = escapeMarkdownMathDelimiters(unescapeTitle(tab?.title ?? ""));
   const url = typeof tab?.url === "string" ? tab.url : "";
   const favicon = typeof tab?.favIconUrl === "string" ? tab.favIconUrl : "";
   const urlDetails = parseUrlDetails(url);

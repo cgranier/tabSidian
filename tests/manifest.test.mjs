@@ -5,13 +5,16 @@ import { generateManifest } from "../scripts/utils/manifest.js";
 test("chromium targets request downloads permission", async () => {
   const { manifest: chromeManifest } = await generateManifest("chrome");
   const { manifest: edgeManifest } = await generateManifest("edge");
+  const { manifest: firefoxManifest } = await generateManifest("firefox");
 
   assert.ok(chromeManifest.permissions.includes("downloads"), "Chrome manifest missing downloads");
   assert.ok(edgeManifest.permissions.includes("downloads"), "Edge manifest missing downloads");
+  assert.ok(firefoxManifest.permissions.includes("downloads"), "Firefox manifest missing downloads");
   assert.ok(chromeManifest.permissions.includes("scripting"), "Chrome manifest missing scripting permission");
   assert.ok(edgeManifest.permissions.includes("scripting"), "Edge manifest missing scripting permission");
   assert.ok(chromeManifest.permissions.includes("tabGroups"), "Chrome manifest missing tabGroups permission");
   assert.ok(edgeManifest.permissions.includes("tabGroups"), "Edge manifest missing tabGroups permission");
+  assert.ok(firefoxManifest.permissions.includes("tabGroups"), "Firefox manifest missing tabGroups permission");
 });
 
 test("all targets request notifications permission", async () => {
@@ -45,7 +48,6 @@ test("safari manifest routes downloads through share mode", async () => {
 test("firefox manifest excludes scripting permission", async () => {
   const { manifest } = await generateManifest("firefox");
   assert.ok(!manifest.permissions.includes("scripting"), "Firefox manifest should not include scripting permission");
-  assert.ok(!manifest.permissions.includes("tabGroups"), "Firefox manifest should not include tabGroups permission");
 });
 
 test("firefox manifest omits host permissions", async () => {

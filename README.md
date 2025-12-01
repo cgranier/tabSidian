@@ -67,7 +67,7 @@ The options page now ships with a sandboxed Mustache renderer. Templates can ref
 - Flip the switches in the Properties panel to decide which frontmatter keys ship with each export; turn them all off to drop the frontmatter block entirely.
 - Frontmatter keys are configurable in the options UI; the active names are exposed via `{{frontmatterFields.title}}`, `{{frontmatterFields.date}}`, `{{frontmatterFields.time}}`, `{{frontmatterFields.exportedAt}}`, `{{frontmatterFields.tabCount}}`, `{{frontmatterFields.tags}}`, `{{frontmatterFields.collections}}`, and `{{frontmatterFields.windowIncognito}}`.
 - `{{window.title}}`, `{{window.id}}`, `{{window.focused}}`, and `{{window.incognito}}` for window context.
-- Tabs include group metadata when available: `{{groupTitle}}`, `{{group.color}}`, `{{group.colorHex}}`, etc., and you can iterate groups via `{{#groups}}...{{/groups}}`. (Firefox currently omits this API, so grouped headings will only appear on Chromium-based browsers.)
+- Tabs include group metadata when available: `{{groupTitle}}`, `{{group.color}}`, `{{group.colorHex}}`, etc., and you can iterate groups via `{{#groups}}...{{/groups}}` on browsers that expose tab group APIs (Chromium and Firefox).
 - Inside `{{#tabs}}...{{/tabs}}`, use `{{title}}`, `{{url}}`, `{{hostname}}`, `{{origin}}`, `{{protocol}}`, `{{pathname}}`, `{{search}}`, and `{{hash}}`.
 - Each tab exposes booleans such as `{{active}}`, `{{highlighted}}`, `{{pinned}}`, `{{audible}}`, `{{muted}}`, `{{discarded}}`, and `{{incognito}}`, plus `{{favicon}}` and positional helpers `{{index}}` / `{{position}}`.
 - Timestamp helpers live under `{{timestamps.lastAccessed}}` (ISO) and `{{timestamps.lastAccessedRelative}}` (human friendly).
@@ -146,7 +146,7 @@ Follow the steps below after running the relevant `npm run build:<browser>` comm
 - Only the currently focused window is exported; repeat the action for other windows.
 - Multiple highlighted tabs export only the selection.
 - Safari share integration stores temporary payloads in `browser.storage.local` until the share flow completes.
-- Permissions remain minimal (`tabs`, `storage`, `downloads` (Chromium/Firefox)), with the downloads permission optional on Safari builds.
+- Permissions remain minimal (`tabs`, `storage`, `tabGroups`, `downloads` (Chromium/Firefox)), with the downloads permission optional on Safari builds.
 
 ## Author
 

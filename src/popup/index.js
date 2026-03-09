@@ -24,7 +24,12 @@ let state = {
     folder: "",
     filenamePattern: "Tabs - {{date}}"
   },
-  currentTemplate: null
+  currentTemplate: null,
+  manualOverrides: {
+    vault: false,
+    folder: false,
+    filename: false
+  }
 };
 
 async function initialize() {
@@ -47,7 +52,7 @@ async function initialize() {
     // For now, let's pick the first one
     if (state.templates.length > 0) {
       const defaultTemplate = state.templates.find((template) => template.id === "builtin:default");
-      selectTemplate((defaultTemplate ?? state.templates[0]).id);
+      selectTemplate((defaultTemplate ?? state.templates[0]).id, { resetOverrides: true });
     }
 
     bindEvents();
@@ -91,9 +96,17 @@ function populateVaults() {
   updateActionLabel();
 }
 
-function selectTemplate(id) {
+function selectTemplate(id, { resetOverrides = false } = {}) {
   const template = state.templates.find(t => t.id === id);
   if (!template) return;
+
+  if (resetOverrides) {
+    state.manualOverrides = {
+      vault: false,
+      folder: false,
+      filename: false
+    };
+  }
 
   state.currentTemplate = template;
   elements.templateSelect().value = id;
@@ -106,9 +119,15 @@ function selectTemplate(id) {
     state.saveTargetDefaults.filenamePattern
   );
 
-  elements.filenameInput().value = target.filename;
-  elements.folderInput().value = target.folder || "";
-  elements.vaultSelect().value = target.vault || "";
+  if (!state.manualOverrides.filename) {
+    elements.filenameInput().value = target.filename;
+  }
+  if (!state.manualOverrides.folder) {
+    elements.folderInput().value = target.folder || "";
+  }
+  if (!state.manualOverrides.vault) {
+    elements.vaultSelect().value = target.vault || "";
+  }
   updateActionLabel();
   updatePreview();
 }
@@ -170,9 +189,18 @@ function bindEvents() {
     selectTemplate(e.target.value);
   });
 
-  elements.vaultSelect().addEventListener("change", updateActionLabel);
-  elements.filenameInput().addEventListener("input", updatePreview);
-  elements.folderInput().addEventListener("input", updatePreview);
+  elements.vaultSelect().addEventListener("change", () => {
+    state.manualOverrides.vault = true;
+    updateActionLabel();
+  });
+  elements.filenameInput().addEventListener("input", () => {
+    state.manualOverrides.filename = true;
+    updatePreview();
+  });
+  elements.folderInput().addEventListener("input", () => {
+    state.manualOverrides.folder = true;
+    updatePreview();
+  });
 
   elements.settingsBtn().addEventListener("click", () => {
     browser.runtime.openOptionsPage();

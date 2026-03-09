@@ -12,9 +12,9 @@ obsidian-webclipper git: https://github.com/obsidianmd/obsidian-clipper
 
 #### **1. Executive Summary**
 
-The goal of tabSidian v2.0 is to transition the extension from a "one-click" save tool to a robust tab list saver with a configuration dialog. The primary objectives are to support multiple Obsidian Vaults, user-selectable templates at run time, and overhaul the Options/Settings UI to match the usability standards of the official Obsidian Web Clipper.
+The goal of tabSidian v3.0 is to transition the extension from a "one-click" save tool to a robust tab list saver with a configuration dialog. The primary objectives are to support multiple Obsidian Vaults, user-selectable templates at run time, and overhaul the Options/Settings UI to match the usability standards of the official Obsidian Web Clipper.
 
-tabSidian v2.0 focuses on multi-vault support and granular routing for tab sessions. tabSidian captures metadata from **all open tabs** (or specific selections) and formats them into a single Markdown list. Version 2.0 introduces a configuration hierarchy where specific Templates (e.g., "Work Session," "Recipe Collection") can target specific Vaults, Folders, and Filenames automatically, reducing user friction.
+tabSidian v3.0 focuses on multi-vault support and granular routing for tab sessions. tabSidian captures metadata from **all open tabs** (or specific selections) and formats them into a single Markdown list. Version 3.0 introduces a configuration hierarchy where specific Templates (e.g., "Work Session," "Recipe Collection") can target specific Vaults, Folders, and Filenames automatically, reducing user friction.
 
 #### **2. Core User Stories**
 

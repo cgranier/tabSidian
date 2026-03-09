@@ -21,8 +21,10 @@ Requires Obsidian 1.7.2 or above: Web Clipper relies on features added to Obsidi
 
 To save directly into your Obsidian vault, go to the extension options (right-click on the extension icon and select Extension options from the menu).
 
-- In the General section, input your **Obsidian vault name**.
-- For **Note path template**, enter the folder and filename within your vault where you want your notes saved. You can add a timestamp to the filename using `{timestamp}` to automatically insert the current date and time (YYYY-MM-DDTHH-MM-SS). Always keep `.md` at the end.
+- In **General**, add one or more vault names in **Vault Management**.
+- The top vault is your global default. Drag vaults to reorder, or use “Make Default” in the list.
+- Configure **Default Folder** and **Default Filename** for fallback routing when a template does not define its own target.
+- In **Templates**, set per-template default vault/folder/filename to auto-route different sessions.
 
 For example, if you have an Obsidian vault name "MyNotes", want to keep your exported tab notes in a folder called "tabSidian" , and want to name each file "exported-tabs.md" with a timestamp, you would use the following settings:
 
@@ -52,11 +54,10 @@ A copy of the file contents will also be placed on the system clipboard and you 
 
 ### General
 
-- **Obsidian vault name**: Add the Obsidian vault name where you want your files saved to. Leave blank for manual file download.
-- **Note path template**: Controls where the Markdown file lands. `tabSidian/tab-export-{timestamp}.md` is the default.
-  - Use `{timestamp}` to generate unique filenames.
+- **Vault Management**: Add one or more Obsidian vault names. If no vaults are configured, tabSidian will use download/share fallback instead of Obsidian URI.
+- **Default Folder / Default Filename**: Global routing fallback when a template does not provide target values.
+  - Use `{timestamp}` for unique filenames.
   - Apply `{date}` and `{time}` to insert your custom date/time formats.
-  - Paths are relative to your vault root.
   - Keep the `.md` extension.
 - **Date format / Time format**: Customise the strings exposed as `{{{export.local.date}}}` and `{{{export.local.time}}}` in your templates.
   - Defaults remain `YYYY-MM-DD` and `HH:mm:ss` for backwards compatibility.
@@ -64,16 +65,26 @@ A copy of the file contents will also be placed on the system clipboard and you 
 
 ### Properties
 
-- **Field names**: Choose the frontmatter keys used in the exported Markdown. You can rename or disable individual fields.
-- **Frontmatter toggles**: Switch off any fields you don’t want saved; disable them all to omit frontmatter entirely.
+- **Properties table**: Map each variable to a frontmatter field name and toggle whether it is enabled.
+- **Import / Export `types.json`**: Move property mappings between setups and vaults.
 - **Default title template**: Mustache template that builds the `title` field (e.g., `List of {{{export.tabCount}}} tabs saved on {{{export.local.date}}}`). This only adds a `title` field to the frontmatter; the actual filename is determined via **Note path template** in the **General** section.
 - **Default tags**: One template per line. Use sections for conditional tags, e.g., `{{#window.incognito}}incognito{{/window.incognito}}` would add an `incognito` tag if you used tabSidian in a private browser window.
 - **Collections or folders**: Another YAML array you can populate to help your PKM system route notes (e.g., `Research/{{{export.local.date}}}`).
 
 ### Templates
 
-- **Preset selector**: Load built-in or saved presets. Select from dropdown and click **Load**.
-- **Template editor**: Write or paste Mustache syntax. Example block:
+- **Sidebar template list**: Select built-in or custom templates from the left sidebar under Templates.
+- **New template**: Create a custom template from the sidebar button.
+- **Template editor**: Configure per-template routing and body:
+  - Template Name
+  - Default Vault (optional; overrides global default)
+  - Default Folder (optional)
+  - Default Filename (optional)
+  - Content Body (Mustache)
+- **Preview**: Shows sample output using neutral demo tab data.
+- **Save/Delete**: Save template updates or remove custom templates.
+
+Example block:
   ```mustache
   {{{frontmatter}}}
   {{#tabs}}
@@ -81,8 +92,6 @@ A copy of the file contents will also be placed on the system clipboard and you 
   - {{url}}
   {{/tabs}}
   ```
-- **Preview**: Shows sample output based on demo tabs/properties.
-- **Preset management**: Save, delete, import, or export template presets.
 
 #### Cool examples:
 
@@ -112,6 +121,15 @@ Last visited: unknown
 - **Editor**: One substring per line. Any tab whose URL contains the substring is skipped.
 - **Import/Export**: Maintain multiple lists (work, personal, etc.) and reload them as needed.
 - **Why use it**: Keep sensitive or noisy pages (email, devtools, blank tabs) out of your exports.
+
+---
+
+## Popup Dialog
+
+- Clicking the toolbar icon opens a save dialog (instead of immediately saving).
+- Choose a template, adjust vault/folder/filename, and review a live Markdown preview.
+- The action button reads **Add to Obsidian** when a vault is selected, and **Download Markdown** when no vault is selected.
+- Manual vault/folder/filename edits are preserved while switching templates in the same popup session.
 
 ---
 

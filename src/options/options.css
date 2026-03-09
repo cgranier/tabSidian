@@ -278,6 +278,46 @@ textarea {
   align-items: center;
 }
 
+.frontmatter-table-wrap {
+  border: 1px solid #dbe1ea;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.frontmatter-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.frontmatter-table th,
+.frontmatter-table td {
+  border-bottom: 1px solid #eef2f7;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.frontmatter-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+}
+
+.frontmatter-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.frontmatter-table td:last-child,
+.frontmatter-table th:last-child {
+  width: 90px;
+  text-align: center;
+}
+
+.frontmatter-table td:first-child {
+  font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, Menlo, monospace;
+}
+
 .frontmatter-grid input[type="text"] {
   width: 100%;
 }
@@ -319,6 +359,42 @@ textarea {
   font-family: inherit;
 }
 
+.vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.vault-item {
+  padding: 10px 12px;
+  border: 1px solid #dbe1ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.vault-item.is-default {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.vault-item.is-draggable {
+  cursor: grab;
+}
+
+.vault-item.is-dragging {
+  opacity: 0.5;
+}
+
+.vault-item.is-drop-target {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.16);
+}
+
+.vault-name {
+  font-weight: 600;
+}
+
 #frontmatterTitleTemplate {
   min-height: 96px;
 }
@@ -338,6 +414,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  max-width: 820px;
 }
 
 .preset-row,
@@ -394,6 +471,17 @@ button:disabled {
   background-color: #9ca3af;
   cursor: not-allowed;
   transform: none;
+}
+
+.sidebar-template-item:hover:not(:disabled) {
+  background-color: rgba(124, 58, 237, 0.12);
+  color: #3b0764;
+  transform: none;
+}
+
+.sidebar-template-item.active {
+  background-color: rgba(124, 58, 237, 0.18);
+  color: #4c1d95;
 }
 
 .template-preview {
@@ -543,16 +631,17 @@ button:disabled {
 
   .settings-nav {
     position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 6px;
     padding: 10px;
   }
 
-  .settings-tab {
-    flex: 1 1 120px;
-    text-align: center;
+  .nav-item {
+    width: auto;
+    box-sizing: border-box;
+    text-align: left;
   }
 
   .template-grid {

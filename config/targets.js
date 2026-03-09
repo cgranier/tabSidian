@@ -140,7 +140,8 @@ export const TARGETS = {
         optional_permissions: uniqueArray(manifest.optional_permissions ?? []),
         browser_action: {
           default_icon: manifest.action?.default_icon,
-          default_title: manifest.action?.default_title
+          default_title: manifest.action?.default_title,
+          default_popup: manifest.action?.default_popup
         },
         web_accessible_resources: flattenWebAccessibleResources(manifest)
       };

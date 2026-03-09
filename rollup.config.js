@@ -13,7 +13,8 @@ const OUTPUT_DIR = path.join(__dirname, "dist");
 const ENTRY_POINTS = [
   { input: "src/background/index.js", fileName: "background.js", format: "iife" },
   { input: "src/options/index.js", fileName: "options.js", format: "iife" },
-  { input: "src/share/index.js", fileName: "share.js", format: "iife" }
+  { input: "src/share/index.js", fileName: "share.js", format: "iife" },
+  { input: "src/popup/index.js", fileName: "popup.js", format: "iife" }
 ];
 
 export function createRollupConfig({ target = process.env.TARGET_BROWSER || "chrome", define = {} } = {}) {

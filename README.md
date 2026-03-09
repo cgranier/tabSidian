@@ -20,9 +20,12 @@ tabSidian turns the tabs in your current browser window into an Obsidian-friendl
 
 ## Features
 
+- Popup-based save dialog with template, vault, folder, and filename controls before saving.
 - Export focused window tabs to Markdown with frontmatter timestamps.
 - Restrict specific URLs (settings pages, mail, etc.) and skip pinned tabs automatically.
-- Customize Markdown templates with presets from the options page.
+- Manage multiple vaults with global default ordering and per-template routing overrides.
+- Customize Markdown templates with a sidebar template list and live preview in the options page.
+- Import/export `types.json` for frontmatter property mappings.
 - Configure date and time formatting for exported metadata without touching code.
 - Filename templates can reference `{timestamp}`, `{date}`, and `{time}` to mirror your formatting.
 - Platform-aware sanitiser mirrors Obsidian’s rules for Unicode names and reserved characters.
@@ -53,9 +56,10 @@ Latest packaged release: [tabSidian 2.1.2](versions/tabSidian_2.1.2.zip)
 ## Usage
 
 1. Click the tabSidian toolbar icon.
-2. The extension reads the active window, filters restricted or pinned tabs, and formats each one using your Markdown template.
-3. Chromium/Firefox trigger a download prompt. Safari opens the Share Sheet and falls back to copy/download helpers if sharing is cancelled.
-4. Manage restricted URLs and Markdown presets from the extension options page.
+2. Select a template and optionally adjust vault/folder/filename in the popup dialog.
+3. tabSidian reads the active window, filters restricted or pinned tabs, and renders Markdown using the selected template.
+4. If a vault is selected, tabSidian routes to Obsidian URI. If no vault is selected, it falls back to download/share behavior.
+5. Manage vaults, properties, templates, and restricted URLs from the options page sidebar.
 
 ### Template customization
 

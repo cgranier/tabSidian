@@ -1,7 +1,6 @@
 import browser from "webextension-polyfill";
 import {
   DEFAULT_MARKDOWN_FORMAT,
-  DEFAULT_OBSIDIAN_NOTE_PATH,
   DEFAULT_RESTRICTED_URLS,
   DEFAULT_FRONTMATTER_FIELDS,
   DEFAULT_FRONTMATTER_ENABLED_FIELDS,
@@ -9,19 +8,88 @@ import {
   DEFAULT_FRONTMATTER_TAG_TEMPLATES,
   DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES,
   DEFAULT_EXPORT_DATE_FORMAT,
-  DEFAULT_EXPORT_TIME_FORMAT
+  DEFAULT_EXPORT_TIME_FORMAT,
+  DEFAULT_VAULTS,
+  BUILT_IN_PRESETS
 } from "../platform/defaults.js";
+
 import {
   createSampleTemplateContext,
   resolveFrontmatterFields,
   resolveFrontmatterEnabled
 } from "../platform/markdown.js";
+import { renderFrontmatterFields, renderFrontmatterToggleInputs } from "./frontmatterView.js";
+import {
+  DEFAULT_GLOBAL_TARGET_FOLDER,
+  DEFAULT_GLOBAL_TARGET_FILENAME,
+  applyGeneralSettingsToInputs,
+  readGeneralSettingsFromInputs,
+  resetGeneralSettingsInputs
+} from "./sections/general.js";
+import { createGeneralController } from "./sections/generalController.js";
+import {
+  parseRestrictedUrlsImportText,
+  createRestrictedUrlsBlob,
+  resolveRestrictedUrlsOnLoad
+} from "./sections/restricted.js";
+import { createRestrictedController } from "./sections/restrictedController.js";
+import {
+  createCustomTemplateId,
+  createDraftCustomTemplate,
+  normalizeCustomTemplatePreset,
+  upsertCustomTemplatePresets,
+  removeCustomTemplatePresetById
+} from "./sections/templates.js";
+import {
+  applyTemplateToEditorForm,
+  populateTemplateVaultSelect,
+  renderTemplateSidebarItems
+} from "./sections/templateEditorView.js";
+import { createTemplateEditorController } from "./sections/templateEditorController.js";
+import { createFrontmatterController } from "./sections/frontmatterController.js";
+import { createFrontmatterStateApi } from "./sections/frontmatterState.js";
+import {
+  findTemplatePresetById,
+  findTemplatePresetByTemplate,
+  listTemplatePresets
+} from "./sections/templatesController.js";
+import { createPresetsController } from "./sections/presetsController.js";
+import { createResetController } from "./sections/resetController.js";
+import { createPreferencesController } from "./sections/preferencesController.js";
+import { createBootstrapController } from "./sections/bootstrapController.js";
+import {
+  buildVault,
+  appendVault,
+  removeVaultAtIndex,
+  setDefaultVaultByIndex,
+  moveVaultByIndex
+} from "./sections/vaults.js";
+import { createVaultController } from "./sections/vaultsController.js";
+import {
+  MAX_FRONTMATTER_LIST_ENTRIES,
+  normalizeTemplateEntries,
+  parseTemplateMultiline,
+  sanitizeFrontmatterInput,
+  toTemplateMultiline,
+  validateFrontmatterFieldName
+} from "./sections/properties.js";
+import { setupSectionNavigation } from "./sections/navigation.js";
 import { renderTemplate, validateTemplate } from "../platform/templateEngine.js";
 import { describePlatform, IS_SAFARI } from "../platform/runtime.js";
 import { sanitizeRestrictedUrls } from "../platform/tabFilters.js";
+import {
+  STORAGE_KEYS,
+  ensureStorageMigration,
+  getSaveTargetDefaults,
+  getStoredValues,
+  saveSaveTargetDefaults,
+  setStoredValues,
+  getVaults,
+  saveVaults,
+  saveTemplates
+} from "../platform/storage.js";
 
 const CURRENT_TEMPLATE_OPTION_ID = "custom:current";
-const PRESET_STORAGE_KEY = "templatePresets";
 const SECTION_STORAGE_KEY = "options:lastSection";
 const FRONTMATTER_TITLE_STORAGE_KEY = "frontmatterTitleTemplate";
 const FRONTMATTER_TAGS_STORAGE_KEY = "frontmatterTagTemplates";
@@ -30,72 +98,16 @@ const FRONTMATTER_ENABLED_STORAGE_KEY = "frontmatterEnabledFields";
 const TIMESTAMP_DATE_FORMAT_STORAGE_KEY = "exportDateFormat";
 const TIMESTAMP_TIME_FORMAT_STORAGE_KEY = "exportTimeFormat";
 
-const BUILT_IN_PRESETS = [
-  {
-    id: "builtin:default",
-    name: "Default headings",
-    description: "Frontmatter with level-two headings per tab.",
-    template: DEFAULT_MARKDOWN_FORMAT
-  },
-  {
-    id: "builtin:list",
-    name: "Compact list",
-    description: "Frontmatter followed by a bullet list of tabs.",
-    template: `{{{frontmatter}}}
-{{#tabs}}
-- [{{title}}]({{url}})
-{{/tabs}}`
-  },
-  {
-    id: "builtin:metadata",
-    name: "Metadata summary",
-    description: "Adds hostname and timestamps under each tab entry.",
-    template: `{{{frontmatter}}}
-{{#tabs}}
-## {{title}}
-- URL: {{url}}
-- Host: {{hostname}}
-{{#favicon}}- Favicon: {{favicon}}{{/favicon}}
-{{#timestamps.lastAccessed}}- Last visited: {{timestamps.lastAccessed}} ({{timestamps.lastAccessedRelative}}){{/timestamps.lastAccessed}}
-{{^timestamps.lastAccessed}}- Last visited: unknown{{/timestamps.lastAccessed}}
-
-{{/tabs}}`
-  },
-  {
-    id: "builtin:grouped",
-    name: "Grouped headings",
-    description: "Organises output by tab group when available.",
-    template: `{{{frontmatter}}}
-{{#groups}}
-## {{title}}
-{{#tabs}}- [{{title}}]({{url}})
-{{/tabs}}
-
-{{/groups}}
-{{#ungroupedTabs}}
-## {{title}}
-[{{url}}]({{url}})
-
-{{/ungroupedTabs}}`
-  }
-];
-
 const elements = {
   restrictedUrls: () => document.getElementById("restrictedUrls"),
   restrictedImport: () => document.getElementById("restrictedImport"),
   restrictedExport: () => document.getElementById("restrictedExport"),
   restrictedImportInput: () => document.getElementById("restrictedImportInput"),
-  markdownFormat: () => document.getElementById("markdownFormat"),
-  presetFormats: () => document.getElementById("presetFormats"),
-  presetName: () => document.getElementById("presetName"),
-  presetDescription: () => document.querySelector("[data-preset-description]"),
-  presetImportInput: () => document.getElementById("presetImportInput"),
-  applyPreset: () => document.getElementById("applyPreset"),
-  resetTemplate: () => document.getElementById("resetTemplate"),
-  savePreset: () => document.getElementById("savePreset"),
-  deletePreset: () => document.getElementById("deletePreset"),
-  importPresets: () => document.getElementById("importPresets"),
-  exportPresets: () => document.getElementById("exportPresets"),
+  markdownFormat: () => document.getElementById("template-content"),
+  presetName: () => document.getElementById("template-name"),
+  presetImportInput: () => null,
+  importPresets: () => null,
+  exportPresets: () => null,
   templatePreview: () => document.querySelector("[data-template-preview]"),
   templateFeedback: () => document.querySelector("[data-template-feedback]"),
   templateDocs: () => document.querySelector("[data-template-docs]"),
@@ -116,10 +128,28 @@ const elements = {
   resetAll: () => document.getElementById("resetAll"),
   platformHint: () => document.querySelector("[data-platform-hint]"),
   extensionVersion: () => document.querySelector("[data-extension-version]"),
-  obsidianVault: () => document.getElementById("obsidianVault"),
-  obsidianNotePath: () => document.getElementById("obsidianNotePath"),
   timestampDateFormat: () => document.getElementById("timestampDateFormat"),
-  timestampTimeFormat: () => document.getElementById("timestampTimeFormat")
+  timestampTimeFormat: () => document.getElementById("timestampTimeFormat"),
+  globalDefaultFolder: () => document.getElementById("globalDefaultFolder"),
+  globalDefaultFilename: () => document.getElementById("globalDefaultFilename"),
+  vaultList: () => document.getElementById("vault-list"),
+  newVaultInput: () => document.getElementById("new-vault-input"),
+  addVaultBtn: () => document.getElementById("add-vault-btn"),
+  templateName: () => document.getElementById("template-name"),
+  templateFilename: () => document.getElementById("template-filename"),
+  templateFolder: () => document.getElementById("template-folder"),
+  templateVault: () => document.getElementById("template-vault"),
+  templateContent: () => document.getElementById("template-content"),
+  sidebarTemplateList: () => document.getElementById("sidebar-template-list"),
+  templateList: () => document.getElementById("sidebar-template-items"),
+  createTemplateBtn: () => document.getElementById("create-template-btn"),
+  saveTemplateBtn: () => document.getElementById("save-template-btn"),
+  deleteTemplateBtn: () => document.getElementById("delete-template-btn"),
+  frontmatterFieldsContainer: () => document.getElementById("frontmatter-fields-container"),
+  frontmatterTogglesContainer: () => document.getElementById("frontmatter-toggles-container"),
+  propertiesImport: () => document.getElementById("propertiesImport"),
+  propertiesExport: () => document.getElementById("propertiesExport"),
+  propertiesImportInput: () => document.getElementById("propertiesImportInput")
 };
 
 const LEGACY_DEFAULT_RESTRICTED_URLS = [
@@ -159,155 +189,225 @@ const state = {
     dateFormat: DEFAULT_EXPORT_DATE_FORMAT,
     timeFormat: DEFAULT_EXPORT_TIME_FORMAT
   },
+  saveTargetDefaults: {
+    folder: DEFAULT_GLOBAL_TARGET_FOLDER,
+    filenamePattern: DEFAULT_GLOBAL_TARGET_FILENAME
+  },
   preferencesReady: false,
-  pendingSilentSave: false
+  pendingSilentSave: false,
+  vaults: [...DEFAULT_VAULTS]
 };
 
-function getSectionCollections() {
-  const tabs = Array.from(elements.sectionTabs() || []);
-  const panels = Array.from(elements.sectionPanels() || []);
-  return { tabs, panels };
-}
+const vaultController = createVaultController({
+  elements,
+  state,
+  buildVault,
+  appendVault,
+  removeVaultAtIndex,
+  setDefaultVaultByIndex,
+  moveVaultByIndex,
+  getVaults,
+  saveVaults,
+  populateVaultSelect: (select) => populateTemplateVaultSelect(select, state.vaults),
+  setStatusMessage
+});
 
-function activateSection(sectionId, collections, { focusTab = true, storeSelection = false } = {}) {
-  const { tabs, panels } = collections;
-  if (tabs.length === 0 || panels.length === 0) {
-    return;
-  }
+const templateEditorController = createTemplateEditorController({
+  elements,
+  state,
+  getAllPresets,
+  getPresetById,
+  createCustomTemplateId,
+  createDraftCustomTemplate,
+  upsertCustomTemplatePresets,
+  removeCustomTemplatePresetById,
+  applyTemplateToEditorForm,
+  renderTemplateSidebarItems,
+  persistCustomPresets,
+  updateTemplatePreview,
+  setStatusMessage,
+  defaultMarkdownFormat: DEFAULT_MARKDOWN_FORMAT
+});
 
-  const fallback = tabs[0]?.dataset.section ?? null;
-  const available = new Set(panels.map((panel) => panel.dataset.sectionPanel));
-  const target = sectionId && available.has(sectionId) ? sectionId : fallback;
+const restrictedController = createRestrictedController({
+  elements,
+  parseMultiline,
+  toMultilineValue,
+  parseRestrictedUrlsImportText,
+  createRestrictedUrlsBlob,
+  sanitizeRestrictedUrls,
+  queueSave,
+  setStatusMessage
+});
 
-  tabs.forEach((tab) => {
-    const isActive = tab.dataset.section === target;
-    tab.setAttribute("aria-selected", isActive ? "true" : "false");
-    tab.setAttribute("tabindex", isActive ? "0" : "-1");
-    if (isActive && focusTab) {
-      tab.focus();
-    }
-  });
+const presetsController = createPresetsController({
+  elements,
+  state,
+  normalizeCustomPreset,
+  persistCustomPresets,
+  refreshPresetPicker,
+  queueSave,
+  setStatusMessage
+});
 
-  panels.forEach((panel) => {
-    const isActive = panel.dataset.sectionPanel === target;
-    panel.hidden = !isActive;
-    panel.setAttribute("aria-hidden", isActive ? "false" : "true");
-    panel.setAttribute("tabindex", isActive ? "0" : "-1");
-  });
+const generalController = createGeneralController({
+  elements,
+  state,
+  defaults: {
+    exportDateFormat: DEFAULT_EXPORT_DATE_FORMAT,
+    exportTimeFormat: DEFAULT_EXPORT_TIME_FORMAT,
+    globalTargetFilename: DEFAULT_GLOBAL_TARGET_FILENAME
+  },
+  resetGeneralSettingsInputs,
+  resetValidity,
+  sanitizeFormatInput,
+  updateTemplatePreview,
+  queueSave,
+  setStatusMessage
+});
 
-  if (storeSelection && target && browser?.storage?.local) {
-    browser.storage.local
-      .set({ [SECTION_STORAGE_KEY]: target })
-      .catch((error) => console.error("Unable to persist active section", error));
-  }
-}
+const resetController = createResetController({
+  elements,
+  state,
+  defaults: {
+    markdownFormat: DEFAULT_MARKDOWN_FORMAT,
+    restrictedUrls: DEFAULT_RESTRICTED_URLS,
+    frontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
+    frontmatterEnabledFields: DEFAULT_FRONTMATTER_ENABLED_FIELDS,
+    frontmatterTitleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+    frontmatterTagTemplates: DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+    frontmatterCollectionTemplates: DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
+  },
+  generalController,
+  setFrontmatterInputs,
+  setFrontmatterToggles,
+  setFrontmatterTemplateInputs,
+  updateTemplatePreview,
+  persistCustomPresets,
+  refreshPresetPicker,
+  toMultilineValue,
+  queueSave,
+  setStatusMessage
+});
+
+const preferencesController = createPreferencesController({
+  elements,
+  state,
+  constants: {
+    currentTemplateOptionId: CURRENT_TEMPLATE_OPTION_ID,
+    storageKeys: STORAGE_KEYS,
+    frontmatterTitleStorageKey: FRONTMATTER_TITLE_STORAGE_KEY,
+    frontmatterTagsStorageKey: FRONTMATTER_TAGS_STORAGE_KEY,
+    frontmatterCollectionsStorageKey: FRONTMATTER_COLLECTIONS_STORAGE_KEY,
+    frontmatterEnabledStorageKey: FRONTMATTER_ENABLED_STORAGE_KEY,
+    timestampDateFormatStorageKey: TIMESTAMP_DATE_FORMAT_STORAGE_KEY,
+    timestampTimeFormatStorageKey: TIMESTAMP_TIME_FORMAT_STORAGE_KEY,
+    defaultRestrictedUrls: DEFAULT_RESTRICTED_URLS,
+    legacyDefaultRestrictedUrls: LEGACY_DEFAULT_RESTRICTED_URLS,
+    defaultMarkdownFormat: DEFAULT_MARKDOWN_FORMAT,
+    defaultExportDateFormat: DEFAULT_EXPORT_DATE_FORMAT,
+    defaultExportTimeFormat: DEFAULT_EXPORT_TIME_FORMAT,
+    defaultGlobalTargetFilename: DEFAULT_GLOBAL_TARGET_FILENAME,
+    defaultFrontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
+    defaultFrontmatterTitleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+    defaultFrontmatterTagTemplates: DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+    defaultFrontmatterCollectionTemplates: DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES,
+    defaultFrontmatterEnabledFields: DEFAULT_FRONTMATTER_ENABLED_FIELDS
+  },
+  deps: {
+    ensureStorageMigration,
+    getSaveTargetDefaults,
+    getStoredValues,
+    setStoredValues,
+    saveSaveTargetDefaults,
+    sanitizeRestrictedUrls,
+    resolveRestrictedUrlsOnLoad,
+    normalizeCustomPreset,
+    findPresetMatchingTemplate,
+    toMultilineValue,
+    parseMultiline,
+    sanitizeFormatInput,
+    applyGeneralSettingsToInputs,
+    readGeneralSettingsFromInputs,
+    renderFrontmatterSettings,
+    renderFrontmatterToggles,
+    setFrontmatterInputs,
+    setFrontmatterTemplateInputs,
+    setFrontmatterToggles,
+    validateFrontmatterTemplateLists,
+    refreshPresetPicker
+  },
+  setStatusMessage,
+  queueSave,
+  updateTemplatePreview
+});
+
+const bootstrapController = createBootstrapController({
+  initializeSectionNavigation,
+  attachEvents,
+  renderPlatformHint,
+  renderExtensionVersion,
+  preferencesController,
+  vaultController,
+  templateEditorController,
+  restrictedController,
+  presetsController,
+  state,
+  setStatusMessage
+});
+
+const frontmatterController = createFrontmatterController({
+  elements,
+  state,
+  defaults: {
+    frontmatterTitleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+    sanitizeFrontmatterInput
+  },
+  setFrontmatterToggles,
+  updateFrontmatterState,
+  handleFrontmatterToggleChange,
+  updateFrontmatterListsState,
+  queueSave,
+  updateTemplatePreview
+});
 
 function initializeSectionNavigation() {
-  const collections = getSectionCollections();
-  const { tabs } = collections;
-  if (tabs.length === 0) {
-    return Promise.resolve();
-  }
+  const tabs = Array.from(elements.sectionTabs() || []);
+  const panels = Array.from(elements.sectionPanels() || []);
 
-  const focusByIndex = (index, { storeSelection = false } = {}) => {
-    const normalized = (index + tabs.length) % tabs.length;
-    const targetTab = tabs[normalized];
-    if (!targetTab) {
-      return;
-    }
-    activateSection(targetTab.dataset.section, collections, {
-      focusTab: true,
-      storeSelection
-    });
-  };
-
-  tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => {
-      activateSection(tab.dataset.section, collections, {
-        focusTab: true,
-        storeSelection: true
-      });
-    });
-
-    tab.addEventListener("keydown", (event) => {
-      switch (event.key) {
-        case "ArrowUp":
-        case "ArrowLeft":
-          event.preventDefault();
-          focusByIndex(index - 1, { storeSelection: true });
-          break;
-        case "ArrowDown":
-        case "ArrowRight":
-          event.preventDefault();
-          focusByIndex(index + 1, { storeSelection: true });
-          break;
-        case "Home":
-          event.preventDefault();
-          focusByIndex(0, { storeSelection: true });
-          break;
-        case "End":
-          event.preventDefault();
-          focusByIndex(tabs.length - 1, { storeSelection: true });
-          break;
-        case "Enter":
-        case " ":
-          event.preventDefault();
-          activateSection(tab.dataset.section, collections, {
-            focusTab: true,
-            storeSelection: true
-          });
-          break;
-        default:
-          break;
+  return setupSectionNavigation({
+    tabs,
+    panels,
+    initialSection: undefined,
+    readLastSection: () => {
+      if (!browser?.storage?.local) {
+        return Promise.resolve(undefined);
       }
-    });
+      return browser.storage.local
+        .get(SECTION_STORAGE_KEY)
+        .then((stored) =>
+          stored && typeof stored[SECTION_STORAGE_KEY] === "string" ? stored[SECTION_STORAGE_KEY] : undefined
+        );
+    },
+    writeLastSection: (target) => {
+      if (!browser?.storage?.local) {
+        return;
+      }
+      browser.storage.local
+        .set({ [SECTION_STORAGE_KEY]: target })
+        .catch((error) => console.error("Unable to persist active section", error));
+    },
+    onSectionChange: (target) => {
+      const sidebarList = elements.sidebarTemplateList();
+      if (sidebarList) {
+        sidebarList.classList.toggle("hidden", target !== "templates");
+      }
+    }
   });
-
-  const restore = () => activateSection(undefined, collections, { focusTab: false });
-
-  if (!browser?.storage?.local) {
-    restore();
-    return Promise.resolve();
-  }
-
-  return browser.storage.local
-    .get(SECTION_STORAGE_KEY)
-    .then((stored) => {
-      const saved = stored && typeof stored[SECTION_STORAGE_KEY] === "string" ? stored[SECTION_STORAGE_KEY] : undefined;
-      activateSection(saved, collections, { focusTab: false });
-    })
-    .catch((error) => {
-      console.error("Unable to restore last viewed section", error);
-      restore();
-    });
-}
-
-function createCustomPresetId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `custom:${crypto.randomUUID()}`;
-  }
-  const random = Math.random().toString(16).slice(2);
-  return `custom:${Date.now().toString(16)}-${random}`;
 }
 
 function normalizeCustomPreset(rawPreset) {
-  if (!rawPreset || typeof rawPreset !== "object") {
-    return null;
-  }
-
-  const template = typeof rawPreset.template === "string" ? rawPreset.template : "";
-  const name = typeof rawPreset.name === "string" ? rawPreset.name.trim() : "";
-  if (!template || !name) {
-    return null;
-  }
-
-  const description = typeof rawPreset.description === "string" ? rawPreset.description.trim() : "";
-  const id =
-    typeof rawPreset.id === "string" && rawPreset.id.startsWith("custom:")
-      ? rawPreset.id
-      : createCustomPresetId();
-
-  return { id, name, description, template };
+  return normalizeCustomTemplatePreset(rawPreset, createCustomTemplateId);
 }
 
 function toMultilineValue(values) {
@@ -316,17 +416,6 @@ function toMultilineValue(values) {
 
 function parseMultiline(value) {
   return sanitizeRestrictedUrls(value.split("\n").map((entry) => entry.trim()));
-}
-
-function toTemplateMultiline(values = []) {
-  return values.filter((value) => typeof value === "string" && value.trim().length > 0).join("\n");
-}
-
-function parseTemplateMultiline(value) {
-  return value
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
 }
 
 function debounce(fn, delay = 300) {
@@ -348,165 +437,67 @@ function debounce(fn, delay = 300) {
 const FRONTMATTER_FIELD_KEYS = /** @type {Array<keyof typeof DEFAULT_FRONTMATTER_FIELDS>} */ (
   Object.keys(DEFAULT_FRONTMATTER_FIELDS)
 );
-const FRONTMATTER_FIELD_PATTERN = /^[A-Za-z0-9_\-]+$/;
-const MAX_FRONTMATTER_LIST_ENTRIES = 50;
 
-function sanitizeFrontmatterInput(value) {
-  return (value ?? "").trim();
+const frontmatterStateApi = createFrontmatterStateApi({
+  elements,
+  state,
+  frontmatterFieldKeys: FRONTMATTER_FIELD_KEYS,
+  defaults: {
+    frontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
+    frontmatterEnabledFields: DEFAULT_FRONTMATTER_ENABLED_FIELDS,
+    frontmatterTitleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
+    frontmatterTagTemplates: DEFAULT_FRONTMATTER_TAG_TEMPLATES,
+    frontmatterCollectionTemplates: DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
+  },
+  resolveFrontmatterFields,
+  resolveFrontmatterEnabled,
+  renderFrontmatterFields,
+  renderFrontmatterToggleInputs,
+  sanitizeFrontmatterInput,
+  validateFrontmatterFieldName,
+  parseTemplateMultiline,
+  normalizeTemplateEntries,
+  toTemplateMultiline,
+  maxFrontmatterListEntries: MAX_FRONTMATTER_LIST_ENTRIES,
+  queueSave,
+  updateTemplatePreview,
+  cancelPendingSave: () => scheduleSave.cancel()
+});
+
+function renderFrontmatterSettings() {
+  return frontmatterStateApi.renderFrontmatterSettings();
+}
+
+function renderFrontmatterToggles() {
+  return frontmatterStateApi.renderFrontmatterToggles();
 }
 
 function setFrontmatterInputs(fieldMap = DEFAULT_FRONTMATTER_FIELDS) {
-  const resolved = resolveFrontmatterFields(fieldMap);
-  FRONTMATTER_FIELD_KEYS.forEach((key) => {
-    const input = document.querySelector(`[data-frontmatter-field="${key}"]`);
-    if (input instanceof HTMLInputElement) {
-      input.value = resolved[key];
-      input.setCustomValidity("");
-    }
-  });
-  state.frontmatterFields = resolved;
-  state.frontmatterValidation = {
-    hasErrors: false,
-    messages: []
-  };
-  updateFrontmatterFeedback();
+  return frontmatterStateApi.setFrontmatterInputs(fieldMap);
 }
 
 function validateFrontmatterInputs() {
-  /** @type {Record<string, string>} */
-  const collected = {};
-  const messages = [];
-  let hasErrors = false;
-
-  /** @type {Map<string, HTMLInputElement>} */
-  const seen = new Map();
-
-  FRONTMATTER_FIELD_KEYS.forEach((key) => {
-    const input = document.querySelector(`[data-frontmatter-field="${key}"]`);
-    if (!(input instanceof HTMLInputElement)) {
-      return;
-    }
-
-    const trimmed = sanitizeFrontmatterInput(input.value);
-    input.value = trimmed;
-    let message = "";
-
-    if (trimmed.length === 0) {
-      message = "Field name is required.";
-    } else if (!FRONTMATTER_FIELD_PATTERN.test(trimmed)) {
-      message = "Use letters, numbers, hyphen, or underscore.";
-    } else {
-      const lower = trimmed.toLowerCase();
-      if (seen.has(lower)) {
-        message = `Duplicate field name (“${trimmed}”).`;
-        const other = seen.get(lower);
-        if (other) {
-          other.setCustomValidity(message);
-        }
-      } else {
-        seen.set(lower, input);
-        collected[key] = trimmed;
-      }
-    }
-
-    if (message) {
-      hasErrors = true;
-      input.setCustomValidity(message);
-      messages.push(message);
-    } else {
-      input.setCustomValidity("");
-    }
-  });
-
-  const normalized = resolveFrontmatterFields(collected);
-  return {
-    hasErrors,
-    messages,
-    normalized
-  };
+  return frontmatterStateApi.validateFrontmatterInputs();
 }
 
 function updateFrontmatterFeedback() {
-  const feedbackElement = elements.frontmatterFeedback();
-  if (!feedbackElement) {
-    return;
-  }
-
-  const { hasErrors, messages } = state.frontmatterValidation;
-  feedbackElement.textContent = "";
-  feedbackElement.classList.remove("is-error", "is-ok", "is-warning");
-
-  if (hasErrors) {
-    const uniqueMessages = [...new Set(messages)];
-    feedbackElement.textContent = uniqueMessages.join(" · ");
-    feedbackElement.classList.add("is-error");
-  }
+  return frontmatterStateApi.updateFrontmatterFeedback();
 }
 
 function setFrontmatterToggles(flags = DEFAULT_FRONTMATTER_ENABLED_FIELDS) {
-  const normalized = resolveFrontmatterEnabled(flags);
-  elements.frontmatterToggles().forEach((toggle) => {
-    if (!(toggle instanceof HTMLInputElement)) {
-      return;
-    }
-    const key = toggle.dataset.frontmatterToggle;
-    if (!key) {
-      return;
-    }
-    const isEnabled = normalized[key] !== false;
-    toggle.checked = isEnabled;
-  });
-  state.frontmatterEnabled = normalized;
+  return frontmatterStateApi.setFrontmatterToggles(flags);
 }
 
 function handleFrontmatterToggleChange(event) {
-  if (!(event.currentTarget instanceof HTMLInputElement)) {
-    return;
-  }
-  const toggle = event.currentTarget;
-  const key = toggle.dataset.frontmatterToggle;
-  if (!key) {
-    return;
-  }
-  state.frontmatterEnabled = resolveFrontmatterEnabled({
-    ...state.frontmatterEnabled,
-    [key]: toggle.checked
-  });
-  updateTemplatePreview();
-  queueSave({ silent: true });
+  return frontmatterStateApi.handleFrontmatterToggleChange(event);
 }
 
 function updateFrontmatterListsState({ sanitize = true } = {}) {
-  const result = validateFrontmatterTemplateLists({ sanitize });
-  if (sanitize && result.hasErrors) {
-    scheduleSave.cancel();
-    return;
-  }
-  if (sanitize && state.preferencesReady) {
-    queueSave({ silent: true });
-  }
-  updateTemplatePreview();
+  return frontmatterStateApi.updateFrontmatterListsState({ sanitize });
 }
 
 function updateFrontmatterListFeedback() {
-  const feedbackElement = elements.frontmatterListFeedback();
-  if (!feedbackElement) {
-    return;
-  }
-
-  const { hasErrors, messages } = state.frontmatterListValidation;
-  feedbackElement.textContent = "";
-  feedbackElement.classList.remove("is-error", "is-warning", "is-ok");
-
-  if (messages.length > 0) {
-    feedbackElement.textContent = [...new Set(messages)].join(" · ");
-  }
-
-  if (hasErrors) {
-    feedbackElement.classList.add("is-error");
-  } else if (messages.length > 0) {
-    feedbackElement.classList.add("is-warning");
-  }
+  return frontmatterStateApi.updateFrontmatterListFeedback();
 }
 
 function setFrontmatterTemplateInputs({
@@ -514,116 +505,19 @@ function setFrontmatterTemplateInputs({
   tagTemplates = DEFAULT_FRONTMATTER_TAG_TEMPLATES,
   collectionTemplates = DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
 } = {}) {
-  const normalizedTitle =
-    typeof titleTemplate === "string" && titleTemplate.trim().length > 0
-      ? titleTemplate.trim()
-      : DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
-  const normalizedTags = Array.isArray(tagTemplates)
-    ? tagTemplates
-        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-        .filter((entry) => entry.length > 0)
-    : [...DEFAULT_FRONTMATTER_TAG_TEMPLATES];
-  const normalizedCollections = Array.isArray(collectionTemplates)
-    ? collectionTemplates
-        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-        .filter((entry) => entry.length > 0)
-    : [...DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES];
-
-  const titleInput = elements.frontmatterTitleTemplate();
-  if (titleInput instanceof HTMLTextAreaElement || titleInput instanceof HTMLInputElement) {
-    titleInput.value = normalizedTitle;
-    titleInput.setCustomValidity("");
-  }
-
-  const tagsInput = elements.frontmatterTags();
-  if (tagsInput instanceof HTMLTextAreaElement) {
-    tagsInput.value = toTemplateMultiline(normalizedTags);
-    tagsInput.setCustomValidity("");
-  }
-
-  const collectionsInput = elements.frontmatterCollections();
-  if (collectionsInput instanceof HTMLTextAreaElement) {
-    collectionsInput.value = toTemplateMultiline(normalizedCollections);
-    collectionsInput.setCustomValidity("");
-  }
-
-  state.frontmatterTitleTemplate = normalizedTitle;
-  state.frontmatterTagTemplates = [...normalizedTags];
-  state.frontmatterCollectionTemplates = [...normalizedCollections];
-  state.frontmatterListValidation = { hasErrors: false, messages: [] };
-  updateFrontmatterListFeedback();
+  return frontmatterStateApi.setFrontmatterTemplateInputs({
+    titleTemplate,
+    tagTemplates,
+    collectionTemplates
+  });
 }
 
 function validateFrontmatterTemplateLists({ sanitize = true } = {}) {
-  const tagsInput = elements.frontmatterTags();
-  const collectionsInput = elements.frontmatterCollections();
-  const messages = [];
-  let hasErrors = false;
-
-  const parseAndNormalize = (input) => {
-    if (!(input instanceof HTMLTextAreaElement)) {
-      return [];
-    }
-
-    const entries = parseTemplateMultiline(input.value);
-    if (!sanitize) {
-      input.setCustomValidity("");
-      return entries;
-    }
-
-    if (entries.length !== 0 || input.value.trim().length === 0) {
-      input.value = toTemplateMultiline(entries);
-    }
-    const unique = [];
-    const seen = new Set();
-    const duplicates = [];
-
-    entries.forEach((entry) => {
-      const key = entry.toLowerCase();
-      if (seen.has(key)) {
-        duplicates.push(entry);
-        return;
-      }
-      seen.add(key);
-      unique.push(entry);
-    });
-
-    if (unique.length > MAX_FRONTMATTER_LIST_ENTRIES) {
-      const message = `Use ${MAX_FRONTMATTER_LIST_ENTRIES} or fewer entries.`;
-      input.setCustomValidity(message);
-      messages.push(message);
-      hasErrors = true;
-      const limited = unique.slice(0, MAX_FRONTMATTER_LIST_ENTRIES);
-      input.value = toTemplateMultiline(limited);
-      return limited;
-    }
-
-    input.setCustomValidity("");
-
-    if (duplicates.length > 0) {
-      messages.push(`Duplicates removed: ${duplicates.join(", ")}`);
-    }
-
-    if (duplicates.length > 0 || entries.length !== unique.length) {
-      input.value = toTemplateMultiline(unique);
-    }
-
-    return unique;
-  };
-
-  const tagTemplates = parseAndNormalize(tagsInput);
-  const collectionTemplates = parseAndNormalize(collectionsInput);
-
-  state.frontmatterTagTemplates = [...tagTemplates];
-  state.frontmatterCollectionTemplates = [...collectionTemplates];
-  state.frontmatterListValidation = sanitize ? { hasErrors, messages } : { hasErrors: false, messages: [] };
-  updateFrontmatterListFeedback();
-
-  return { hasErrors };
+  return frontmatterStateApi.validateFrontmatterTemplateLists({ sanitize });
 }
 
 const scheduleSave = debounce(() => {
-  savePreferences().catch((error) => {
+  preferencesController.savePreferences().catch((error) => {
     console.error("Failed to persist preferences", error);
     setStatusMessage("Unable to save preferences. Check the console for details.", "error");
   });
@@ -667,197 +561,7 @@ function queueSave(options = {}) {
 }
 
 function updateFrontmatterState() {
-  const result = validateFrontmatterInputs();
-  state.frontmatterValidation = {
-    hasErrors: result.hasErrors,
-    messages: result.messages
-  };
-  if (!result.hasErrors) {
-    state.frontmatterFields = result.normalized;
-  }
-  updateFrontmatterFeedback();
-  if (state.frontmatterValidation.hasErrors) {
-    scheduleSave.cancel();
-  } else {
-    queueSave({ silent: true });
-  }
-  updateTemplatePreview();
-}
-
-const OBSIDIAN_NOTE_PATH_INVALID_SEGMENT = /(^|\/)(\.{1,2})(\/|$)/;
-const OBSIDIAN_WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
-const OBSIDIAN_INVALID_CHAR_COMMON = /[#|\^\[\]]/g;
-const OBSIDIAN_INVALID_CHAR_WINDOWS = /[<>:"/\\?*\x00-\x1F]/g;
-const OBSIDIAN_INVALID_CHAR_MAC = /[/:\x00-\x1F]/g;
-const OBSIDIAN_INVALID_CHAR_OTHER = /[<>:"/\\|?*\x00-\x1F]/g;
-const OBSIDIAN_WINDOWS_TRAILING_CHARS = /[\s.]+$/;
-const OBSIDIAN_LEADING_DOTS_PATTERN = /^\.+/;
-
-function sanitizeTextInput(value) {
-  return (value ?? "").trim();
-}
-
-function detectPlatform() {
-  const uaData = (typeof navigator !== "undefined" && (navigator).userAgentData) || null;
-  const platform =
-    (uaData && Array.isArray(uaData.platforms) && uaData.platforms[0]) ||
-    (uaData && uaData.platform) ||
-    (typeof navigator !== "undefined" ? navigator.platform : "") ||
-    "";
-  const lower = platform.toLowerCase();
-  return {
-    isWindows: lower.includes("win"),
-    isMac: lower.includes("mac")
-  };
-}
-
-function sanitizeFileNameSegment(fileName, { isWindows, isMac }) {
-  const base = typeof fileName === "string" ? fileName : "";
-
-  let sanitized = base.replace(OBSIDIAN_INVALID_CHAR_COMMON, "");
-
-  if (isWindows) {
-    sanitized = sanitized
-      .replace(OBSIDIAN_INVALID_CHAR_WINDOWS, "")
-      .replace(/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i, "_$1$2")
-      .replace(OBSIDIAN_WINDOWS_TRAILING_CHARS, "");
-  } else if (isMac) {
-    sanitized = sanitized.replace(OBSIDIAN_INVALID_CHAR_MAC, "").replace(/^\./, "_");
-  } else {
-    sanitized = sanitized.replace(OBSIDIAN_INVALID_CHAR_OTHER, "").replace(/^\./, "_");
-  }
-
-  sanitized = sanitized
-    .replace(OBSIDIAN_LEADING_DOTS_PATTERN, "")
-    .trim()
-    .slice(0, 245);
-
-  if (sanitized.length === 0) {
-    sanitized = "Untitled";
-  }
-
-  return sanitized;
-}
-
-function sanitizeNotePathInput(value) {
-  const normalized = (value ?? "")
-    .replace(/\\/g, "/")
-    .split("/")
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-
-  const platformInfo = detectPlatform();
-  const sanitizedSegments = normalized.map((segment, index) => {
-    const sanitized = sanitizeFileNameSegment(segment, platformInfo);
-    if (platformInfo.isWindows) {
-      const base = sanitized.replace(/\.[^.]+$/, "");
-      if (OBSIDIAN_WINDOWS_RESERVED.test(base)) {
-        const ext = sanitized.slice(base.length);
-        return `_${base}${ext}`;
-      }
-    }
-    return sanitized;
-  });
-
-  return sanitizedSegments.join("/");
-}
-
-function collectInvalidCharacters(value, regex, collector) {
-  if (!value) {
-    return;
-  }
-  const matches = value.match(regex);
-  if (matches) {
-    matches.forEach((char) => collector.add(char));
-  }
-}
-
-function formatInvalidCharacterList(characters) {
-  if (!Array.isArray(characters) || characters.length === 0) {
-    return "";
-  }
-  const tokens = characters.map((char) => {
-    if (char === " ") {
-      return "spaces";
-    }
-    if (char === "\t") {
-      return "tabs";
-    }
-    if (char === "\n") {
-      return "line breaks";
-    }
-    if (char === "\r") {
-      return "carriage returns";
-    }
-    const codePoint = char.codePointAt(0);
-    if (typeof codePoint === "number" && (codePoint < 32 || codePoint === 127)) {
-      return `control U+${codePoint.toString(16).padStart(4, "0")}`;
-    }
-    return "'" + char + "'";
-  });
-
-  if (tokens.length === 1) {
-    return tokens[0];
-  }
-  if (tokens.length === 2) {
-    return `${tokens[0]} or ${tokens[1]}`;
-  }
-  return `${tokens.slice(0, -1).join(", ")}, or ${tokens[tokens.length - 1]}`;
-}
-
-function describeVaultNameIssues(rawVault, sanitizedVault, platformInfo) {
-  const invalidCharacters = new Set();
-  collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_COMMON, invalidCharacters);
-  if (platformInfo.isWindows) {
-    collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_WINDOWS, invalidCharacters);
-  } else if (platformInfo.isMac) {
-    collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_MAC, invalidCharacters);
-  } else {
-    collectInvalidCharacters(rawVault, OBSIDIAN_INVALID_CHAR_OTHER, invalidCharacters);
-  }
-
-  return {
-    invalidCharacters: [...invalidCharacters],
-    trailingCharacters: platformInfo.isWindows ? OBSIDIAN_WINDOWS_TRAILING_CHARS.test(rawVault) : false,
-    leadingDots: OBSIDIAN_LEADING_DOTS_PATTERN.test(rawVault),
-    reservedName: platformInfo.isWindows
-      ? /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(rawVault)
-      : false,
-    tooLong: rawVault.length > 245,
-    replacedCompletely: sanitizedVault === "Untitled"
-  };
-}
-
-function buildVaultNameErrorMessage(rawVault, sanitizedVault, platformInfo) {
-  const issues = describeVaultNameIssues(rawVault, sanitizedVault, platformInfo);
-  const platformLabel = platformInfo.isWindows ? "Windows" : platformInfo.isMac ? "macOS" : "this platform";
-  const parts = [];
-
-  if (issues.invalidCharacters.length > 0) {
-    const characters = formatInvalidCharacterList(issues.invalidCharacters);
-    parts.push(`cannot include ${characters} on ${platformLabel}.`);
-  }
-  if (issues.trailingCharacters) {
-    parts.push("cannot end with spaces or periods on Windows.");
-  }
-  if (issues.leadingDots) {
-    parts.push("cannot start with '.' or only contain dots.");
-  }
-  if (issues.reservedName) {
-    parts.push("cannot use Windows-reserved device names (con, prn, aux, nul, com1-com9, lpt1-lpt9).");
-  }
-  if (issues.tooLong) {
-    parts.push("must be 245 characters or fewer.");
-  }
-  if (issues.replacedCompletely && parts.length === 0) {
-    parts.push("only contains characters Obsidian rejects.");
-  }
-
-  if (parts.length === 0) {
-    return "Vault name contains characters Obsidian does not permit on this platform.";
-  }
-
-  return `Vault name ${parts.join(" ")}`;
+  return frontmatterStateApi.updateFrontmatterState();
 }
 
 function sanitizeFormatInput(value, fallback) {
@@ -873,84 +577,16 @@ function resetValidity(...inputs) {
   });
 }
 
-function validateObsidianPreferences() {
-  const vaultInput = elements.obsidianVault();
-  const notePathInput = elements.obsidianNotePath();
-
-  resetValidity(vaultInput, notePathInput);
-
-  const rawVault = sanitizeTextInput(vaultInput?.value);
-  const rawNotePath = sanitizeTextInput(notePathInput?.value);
-
-  const hasVault = rawVault.length > 0;
-  const hasNotePath = rawNotePath.length > 0;
-
-  if (!hasVault && !hasNotePath) {
-    return {
-      vault: "",
-      notePath: ""
-    };
-  }
-
-  if (!hasVault) {
-    vaultInput.setCustomValidity("Vault name is required when configuring Obsidian exports.");
-    vaultInput.reportValidity();
-    return null;
-  }
-
-  const platformInfo = detectPlatform();
-  const sanitizedVault = sanitizeFileNameSegment(rawVault, platformInfo);
-  if (sanitizedVault !== rawVault) {
-    vaultInput.setCustomValidity(buildVaultNameErrorMessage(rawVault, sanitizedVault, platformInfo));
-    vaultInput.reportValidity();
-    return null;
-  }
-
-  const fallbackTemplate = hasNotePath ? rawNotePath : DEFAULT_OBSIDIAN_NOTE_PATH;
-  const sanitizedPath = sanitizeNotePathInput(fallbackTemplate);
-
-  if (sanitizedPath.length === 0) {
-    notePathInput.setCustomValidity("Provide a note path within your Obsidian vault.");
-    notePathInput.reportValidity();
-    return null;
-  }
-
-  if (!sanitizedPath.toLowerCase().endsWith(".md")) {
-    notePathInput.setCustomValidity("Obsidian note paths must end with .md.");
-    notePathInput.reportValidity();
-    return null;
-  }
-
-  if (OBSIDIAN_NOTE_PATH_INVALID_SEGMENT.test(sanitizedPath)) {
-    notePathInput.setCustomValidity("Note paths cannot traverse parent directories.");
-    notePathInput.reportValidity();
-    return null;
-  }
-
-  if (notePathInput) {
-    notePathInput.value = sanitizedPath;
-  }
-
-  return {
-    vault: rawVault,
-    notePath: sanitizedPath
-  };
-}
-
 function getAllPresets() {
-  return [...BUILT_IN_PRESETS, ...state.customPresets];
+  return listTemplatePresets(BUILT_IN_PRESETS, state.customPresets);
 }
 
 function getPresetById(id) {
-  if (!id) {
-    return null;
-  }
-
-  return getAllPresets().find((preset) => preset.id === id) ?? null;
+  return findTemplatePresetById(getAllPresets(), id);
 }
 
 function findPresetMatchingTemplate(template) {
-  return getAllPresets().find((preset) => preset.template === template) ?? null;
+  return findTemplatePresetByTemplate(getAllPresets(), template);
 }
 
 function setStatusMessage(message, type = "info") {
@@ -1032,91 +668,10 @@ function computeTemplateDiagnostics(template, sampleContext) {
 }
 
 function refreshPresetPicker(selectedId = state.selectedPresetId) {
-  const select = elements.presetFormats();
-  select.innerHTML = "";
-
-  const currentOption = document.createElement("option");
-  currentOption.value = CURRENT_TEMPLATE_OPTION_ID;
-  currentOption.textContent = "Current template (unsaved)";
-  select.appendChild(currentOption);
-
-  const builtInGroup = document.createElement("optgroup");
-  builtInGroup.label = "Built-in presets";
-  BUILT_IN_PRESETS.forEach((preset) => {
-    const option = document.createElement("option");
-    option.value = preset.id;
-    option.textContent = preset.name;
-    builtInGroup.appendChild(option);
-  });
-  select.appendChild(builtInGroup);
-
-  if (state.customPresets.length > 0) {
-    const customGroup = document.createElement("optgroup");
-    customGroup.label = "Your presets";
-    state.customPresets.forEach((preset) => {
-      const option = document.createElement("option");
-      option.value = preset.id;
-      option.textContent = preset.name;
-      customGroup.appendChild(option);
-    });
-    select.appendChild(customGroup);
-  }
-
-  select.value = selectedId;
-  if (select.value !== selectedId) {
-    select.value = CURRENT_TEMPLATE_OPTION_ID;
-    state.selectedPresetId = CURRENT_TEMPLATE_OPTION_ID;
-  }
-
-  updatePresetDescription();
-  updatePresetButtons();
+  templateEditorController.renderTemplateList();
 }
 
-function updatePresetDescription() {
-  const descriptionElement = elements.presetDescription();
-  if (!descriptionElement) {
-    return;
-  }
 
-  if (state.selectedPresetId === CURRENT_TEMPLATE_OPTION_ID) {
-    descriptionElement.textContent =
-      "Editing a custom template. Save it to reuse or export it as part of a preset library.";
-    return;
-  }
-
-  const preset = getPresetById(state.selectedPresetId);
-  if (!preset) {
-    descriptionElement.textContent = "";
-    return;
-  }
-
-  descriptionElement.textContent = preset.description || "Preset ready to load.";
-}
-
-function updatePresetButtons() {
-  const applyPresetButton = elements.applyPreset();
-  const savePresetButton = elements.savePreset();
-  const deletePresetButton = elements.deletePreset();
-  const presetNameInput = elements.presetName();
-
-  const hasName = presetNameInput.value.trim().length > 0;
-  const hasErrors = state.diagnostics.errors.length > 0;
-  const hasFrontmatterErrors = state.frontmatterValidation.hasErrors;
-
-  if (applyPresetButton) {
-    applyPresetButton.disabled = state.selectedPresetId === CURRENT_TEMPLATE_OPTION_ID;
-  }
-
-  if (savePresetButton) {
-    savePresetButton.disabled = hasErrors || !hasName;
-  }
-
-  if (deletePresetButton) {
-    deletePresetButton.disabled =
-      !state.selectedPresetId.startsWith("custom:") ||
-      !state.customPresets.some((preset) => preset.id === state.selectedPresetId);
-  }
-}
 
 function updateTemplatePreview() {
   const template = elements.markdownFormat().value ?? "";
@@ -1137,785 +692,111 @@ function updateTemplatePreview() {
   }
 
   updateTemplateFeedback(diagnostics);
-  updatePresetButtons();
-}
-
-function applySelectedPreset() {
-  const preset = getPresetById(state.selectedPresetId);
-  if (!preset) {
-    return;
-  }
-
-  elements.markdownFormat().value = preset.template;
-  state.selectedPresetId = preset.id;
-  setStatusMessage(`Loaded preset "${preset.name}".`, "success");
-  updateTemplatePreview();
-  refreshPresetPicker(preset.id);
-
-  const presetNameInput = elements.presetName();
-  if (presetNameInput) {
-    presetNameInput.value = preset.name;
-  }
-
-  queueSave();
-}
-
-function resetTemplateToDefault() {
-  elements.markdownFormat().value = DEFAULT_MARKDOWN_FORMAT;
-  state.selectedPresetId = "builtin:default";
-  setStatusMessage("Template reset to the default layout.", "success");
-  updateTemplatePreview();
-  refreshPresetPicker(state.selectedPresetId);
-
-  const presetNameInput = elements.presetName();
-  if (presetNameInput) {
-    presetNameInput.value = "";
-  }
-
-  queueSave();
 }
 
 async function persistCustomPresets() {
-  await browser.storage.sync.set({
-    [PRESET_STORAGE_KEY]: state.customPresets
-  });
+  await saveTemplates(state.customPresets);
 }
 
-async function saveCustomPreset() {
-  const nameInput = elements.presetName();
-  const name = nameInput.value.trim();
-  if (!name) {
-    nameInput.focus();
-    setStatusMessage("Enter a preset name before saving.", "error");
-    return;
-  }
-
-  if (state.diagnostics.errors.length > 0) {
-    setStatusMessage("Resolve template errors before saving the preset.", "error");
-    return;
-  }
-
-  const template = elements.markdownFormat().value;
-  const activeId = state.selectedPresetId;
-
-  if (activeId.startsWith("custom:")) {
-    const index = state.customPresets.findIndex((preset) => preset.id === activeId);
-    if (index !== -1) {
-      state.customPresets[index] = {
-        ...state.customPresets[index],
-        name,
-        template
-      };
-      await persistCustomPresets();
-      refreshPresetPicker(activeId);
-      setStatusMessage("Preset updated.", "success");
-      queueSave();
-      return;
-    }
-  }
-
-  const nameMatchIndex = state.customPresets.findIndex(
-    (preset) => preset.name.toLowerCase() === name.toLowerCase()
-  );
-
-  if (nameMatchIndex !== -1) {
-    state.customPresets[nameMatchIndex] = {
-      ...state.customPresets[nameMatchIndex],
-      name,
-      template
-    };
-    state.selectedPresetId = state.customPresets[nameMatchIndex].id;
-    await persistCustomPresets();
-    refreshPresetPicker(state.selectedPresetId);
-    setStatusMessage("Preset updated.", "success");
-    queueSave();
-    return;
-  }
-
-  const newPreset = {
-    id: createCustomPresetId(),
-    name,
-    description: "",
-    template
-  };
-
-  state.customPresets.push(newPreset);
-  state.selectedPresetId = newPreset.id;
-  await persistCustomPresets();
-  refreshPresetPicker(newPreset.id);
-  setStatusMessage("Preset saved.", "success");
-  queueSave();
-}
-
-async function deleteCurrentPreset() {
-  if (!state.selectedPresetId.startsWith("custom:")) {
-    return;
-  }
-
-  const index = state.customPresets.findIndex((preset) => preset.id === state.selectedPresetId);
-  if (index === -1) {
-    return;
-  }
-
-  state.customPresets.splice(index, 1);
-  state.selectedPresetId = CURRENT_TEMPLATE_OPTION_ID;
-  await persistCustomPresets();
-  refreshPresetPicker();
-  const presetNameInput = elements.presetName();
-  if (presetNameInput) {
-    presetNameInput.value = "";
-  }
-  setStatusMessage("Preset removed.", "success");
-  queueSave();
-}
-
-async function importCustomPresetsFromFileList(fileList) {
-  if (!fileList || fileList.length === 0) {
-    return;
-  }
-
-  let imported = 0;
-  let skipped = 0;
-
-  for (const file of fileList) {
-    try {
-      const contents = await file.text();
-      const parsed = JSON.parse(contents);
-      const presets = Array.isArray(parsed) ? parsed : parsed?.presets;
-      if (!Array.isArray(presets)) {
-        skipped += 1;
-        continue;
-      }
-
-      presets.forEach((candidate) => {
-        const preset = normalizeCustomPreset(candidate);
-        if (!preset) {
-          skipped += 1;
-          return;
-        }
-
-        const existingIndex = state.customPresets.findIndex(
-          (entry) => entry.id === preset.id || entry.name.toLowerCase() === preset.name.toLowerCase()
-        );
-
-        if (existingIndex !== -1) {
-          state.customPresets[existingIndex] = {
-            ...state.customPresets[existingIndex],
-            ...preset
-          };
-        } else {
-          state.customPresets.push(preset);
-        }
-
-        imported += 1;
-      });
-    } catch (error) {
-      console.error("Failed to import presets", error);
-      skipped += 1;
-    }
-  }
-
-  if (imported > 0) {
-    await persistCustomPresets();
-    refreshPresetPicker();
-    setStatusMessage(
-      `${imported} preset${imported === 1 ? "" : "s"} imported${skipped ? `, ${skipped} skipped.` : "."}`,
-      "success"
-    );
-    queueSave();
-  } else {
-    setStatusMessage("No presets were imported. Check the file format and try again.", "error");
-  }
-}
-
-function exportCustomPresets() {
-  if (!state.customPresets.length) {
-    setStatusMessage("There are no custom presets to export yet.", "error");
-    return;
-  }
-
+function exportPropertiesConfig() {
   const payload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    presets: state.customPresets
+    fieldNames: state.frontmatterFields,
+    enabledFields: state.frontmatterEnabled
   };
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], {
     type: "application/json"
   });
-
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "tabsidian-presets.json";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-
-  setStatusMessage("Custom presets exported.", "success");
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "types.json";
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  setStatusMessage("Properties exported.", "success");
 }
 
-async function importRestrictedUrlsFromFileList(fileList) {
-  if (!fileList || fileList.length === 0) {
-    return;
-  }
+function applyImportedPropertiesConfig(rawData) {
+  const source =
+    rawData && typeof rawData === "object"
+      ? rawData
+      : {};
+  const rawFields =
+    source.fieldNames && typeof source.fieldNames === "object" ? source.fieldNames : source;
+  const rawEnabled =
+    source.enabledFields && typeof source.enabledFields === "object" ? source.enabledFields : {};
 
-  const [file] = fileList;
-  if (!file) {
-    return;
-  }
+  const normalizedFields = resolveFrontmatterFields(rawFields);
+  const normalizedEnabled = resolveFrontmatterEnabled({
+    ...state.frontmatterEnabled,
+    ...rawEnabled
+  });
 
-  try {
-    const text = await file.text();
-    let entries;
+  state.frontmatterFields = normalizedFields;
+  state.frontmatterEnabled = normalizedEnabled;
 
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) {
-        entries = parsed.map((value) => String(value));
-      } else if (parsed && Array.isArray(parsed.restrictedUrls)) {
-        entries = parsed.restrictedUrls.map((value) => String(value));
-      }
-    } catch (error) {
-      // ignore, fallback to newline parsing
-    }
-
-    if (!entries) {
-      entries = text
-        .split(/\r?\n/)
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-    }
-
-    const sanitized = sanitizeRestrictedUrls(entries);
-    elements.restrictedUrls().value = toMultilineValue(sanitized);
-    setStatusMessage(`Imported ${sanitized.length} restricted entr${sanitized.length === 1 ? "y" : "ies"}.`, "success");
-    queueSave();
-  } catch (error) {
-    console.error("Failed to import restricted URLs", error);
-    setStatusMessage("Failed to import restricted URLs. See console for details.", "error");
-  }
-}
-
-function exportRestrictedUrls() {
-  const entries = parseMultiline(elements.restrictedUrls().value);
-  if (entries.length === 0) {
-    setStatusMessage("Restricted list is empty.", "error");
-    return;
-  }
-
-  const blob = new Blob([entries.join("\n")], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "tabsidian-restricted-urls.txt";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-
-  setStatusMessage("Restricted URLs exported.", "success");
-}
-
-function resetAllPreferences() {
-  resetGeneralPreferences({ silent: true });
-  resetPropertyPreferences({ silent: true });
-  resetTemplatePreferences({ silent: true });
-  resetRestrictedPreferences({ silent: true });
+  renderFrontmatterSettings();
+  setFrontmatterInputs(normalizedFields);
+  setFrontmatterToggles(normalizedEnabled);
+  updateFrontmatterState();
+  updateTemplatePreview();
   queueSave();
-  setStatusMessage("All settings restored to defaults.", "success");
-}
-
-function resetGeneralPreferences(options = {}) {
-  const { silent = false } = options;
-  elements.obsidianVault().value = "";
-  elements.obsidianNotePath().value = DEFAULT_OBSIDIAN_NOTE_PATH;
-  const dateFormatInput = elements.timestampDateFormat();
-  const timeFormatInput = elements.timestampTimeFormat();
-  if (dateFormatInput) {
-    dateFormatInput.value = DEFAULT_EXPORT_DATE_FORMAT;
-  }
-  if (timeFormatInput) {
-    timeFormatInput.value = DEFAULT_EXPORT_TIME_FORMAT;
-  }
-  state.timestampFormats = {
-    dateFormat: DEFAULT_EXPORT_DATE_FORMAT,
-    timeFormat: DEFAULT_EXPORT_TIME_FORMAT
-  };
-  resetValidity(elements.obsidianVault(), elements.obsidianNotePath());
-  if (!silent) {
-    setStatusMessage("General settings reset.", "success");
-  }
-  queueSave({ silent });
-}
-
-function resetPropertyPreferences(options = {}) {
-  const { silent = false } = options;
-  setFrontmatterInputs(DEFAULT_FRONTMATTER_FIELDS);
-  setFrontmatterToggles(DEFAULT_FRONTMATTER_ENABLED_FIELDS);
-  state.frontmatterFields = { ...DEFAULT_FRONTMATTER_FIELDS };
-  state.frontmatterValidation = { hasErrors: false, messages: [] };
-  setFrontmatterTemplateInputs({
-    titleTemplate: DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
-    tagTemplates: DEFAULT_FRONTMATTER_TAG_TEMPLATES,
-    collectionTemplates: DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES
-  });
-  state.frontmatterListValidation = { hasErrors: false, messages: [] };
-  updateTemplatePreview();
-  if (!silent) {
-    setStatusMessage("Properties reset.", "success");
-  }
-  queueSave({ silent });
-}
-
-function resetTemplatePreferences(options = {}) {
-  const { silent = false } = options;
-  elements.markdownFormat().value = DEFAULT_MARKDOWN_FORMAT;
-  state.customPresets = [];
-  state.selectedPresetId = "builtin:default";
-  persistCustomPresets().catch((error) => {
-    console.error("Failed to clear presets during reset", error);
-  });
-  refreshPresetPicker(state.selectedPresetId);
-  updateTemplatePreview();
-  const presetNameInput = elements.presetName();
-  if (presetNameInput) {
-    presetNameInput.value = "";
-  }
-  if (!silent) {
-    setStatusMessage("Templates reset.", "success");
-  }
-  queueSave({ silent });
-}
-
-function resetRestrictedPreferences(options = {}) {
-  const { silent = false } = options;
-  elements.restrictedUrls().value = toMultilineValue(DEFAULT_RESTRICTED_URLS);
-  if (!silent) {
-    setStatusMessage("Restricted URLs reset.", "success");
-  }
-  queueSave({ silent });
-}
-
-async function loadPreferences() {
-  const stored = await browser.storage.sync.get([
-    "restrictedUrls",
-    "markdownFormat",
-    "obsidianVault",
-    "obsidianNotePath",
-    "frontmatterFieldNames",
-    PRESET_STORAGE_KEY,
-    FRONTMATTER_TITLE_STORAGE_KEY,
-    FRONTMATTER_TAGS_STORAGE_KEY,
-    FRONTMATTER_COLLECTIONS_STORAGE_KEY,
-    FRONTMATTER_ENABLED_STORAGE_KEY,
-    TIMESTAMP_DATE_FORMAT_STORAGE_KEY,
-    TIMESTAMP_TIME_FORMAT_STORAGE_KEY
-  ]);
-
-  const storedRestrictedRaw = Array.isArray(stored.restrictedUrls)
-    ? sanitizeRestrictedUrls(stored.restrictedUrls)
-    : [];
-
-  const legacyMatch =
-    JSON.stringify(storedRestrictedRaw) === JSON.stringify(LEGACY_DEFAULT_RESTRICTED_URLS);
-
-  const restrictedUrls =
-    storedRestrictedRaw.length === 0 || legacyMatch
-      ? DEFAULT_RESTRICTED_URLS
-      : storedRestrictedRaw;
-
-  const markdownFormat =
-    typeof stored.markdownFormat === "string" && stored.markdownFormat.trim().length > 0
-      ? stored.markdownFormat
-      : DEFAULT_MARKDOWN_FORMAT;
-
-  const storedVault = typeof stored.obsidianVault === "string" ? stored.obsidianVault : "";
-  const storedPath =
-    typeof stored.obsidianNotePath === "string" && stored.obsidianNotePath.trim().length > 0
-      ? sanitizeNotePathInput(stored.obsidianNotePath)
-      : "";
-
-  const rawPresets = Array.isArray(stored[PRESET_STORAGE_KEY]) ? stored[PRESET_STORAGE_KEY] : [];
-  state.customPresets = rawPresets
-    .map((candidate) => normalizeCustomPreset(candidate))
-    .filter((preset) => preset !== null);
-
-  const matchedPreset = findPresetMatchingTemplate(markdownFormat);
-  state.selectedPresetId = matchedPreset ? matchedPreset.id : CURRENT_TEMPLATE_OPTION_ID;
-
-  elements.restrictedUrls().value = toMultilineValue(restrictedUrls);
-  elements.markdownFormat().value = markdownFormat;
-  elements.obsidianVault().value = storedVault;
-  elements.obsidianNotePath().value = storedPath;
-  const dateFormatInput = elements.timestampDateFormat();
-  const timeFormatInput = elements.timestampTimeFormat();
-  const storedDateFormatRaw =
-    typeof stored[TIMESTAMP_DATE_FORMAT_STORAGE_KEY] === "string"
-      ? stored[TIMESTAMP_DATE_FORMAT_STORAGE_KEY]
-      : "";
-  const storedTimeFormatRaw =
-    typeof stored[TIMESTAMP_TIME_FORMAT_STORAGE_KEY] === "string"
-      ? stored[TIMESTAMP_TIME_FORMAT_STORAGE_KEY]
-      : "";
-  const resolvedDateFormat = sanitizeFormatInput(storedDateFormatRaw, DEFAULT_EXPORT_DATE_FORMAT);
-  const resolvedTimeFormat = sanitizeFormatInput(storedTimeFormatRaw, DEFAULT_EXPORT_TIME_FORMAT);
-  if (dateFormatInput) {
-    dateFormatInput.value = resolvedDateFormat;
-  }
-  if (timeFormatInput) {
-    timeFormatInput.value = resolvedTimeFormat;
-  }
-  state.timestampFormats = {
-    dateFormat: resolvedDateFormat,
-    timeFormat: resolvedTimeFormat
-  };
-  setFrontmatterInputs(stored.frontmatterFieldNames ?? DEFAULT_FRONTMATTER_FIELDS);
-
-  const storedTitleTemplate =
-    typeof stored[FRONTMATTER_TITLE_STORAGE_KEY] === "string"
-      ? stored[FRONTMATTER_TITLE_STORAGE_KEY]
-      : DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
-  const storedTagTemplates = Array.isArray(stored[FRONTMATTER_TAGS_STORAGE_KEY])
-    ? stored[FRONTMATTER_TAGS_STORAGE_KEY].filter((entry) => typeof entry === "string")
-    : DEFAULT_FRONTMATTER_TAG_TEMPLATES;
-  const storedCollectionTemplates = Array.isArray(stored[FRONTMATTER_COLLECTIONS_STORAGE_KEY])
-    ? stored[FRONTMATTER_COLLECTIONS_STORAGE_KEY].filter((entry) => typeof entry === "string")
-    : DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES;
-  const storedEnabledFields =
-    stored && typeof stored[FRONTMATTER_ENABLED_STORAGE_KEY] === "object"
-      ? stored[FRONTMATTER_ENABLED_STORAGE_KEY]
-      : DEFAULT_FRONTMATTER_ENABLED_FIELDS;
-
-  setFrontmatterTemplateInputs({
-    titleTemplate: storedTitleTemplate,
-    tagTemplates: storedTagTemplates,
-    collectionTemplates: storedCollectionTemplates
-  });
-  setFrontmatterToggles(storedEnabledFields);
-  validateFrontmatterTemplateLists();
-
-  refreshPresetPicker(state.selectedPresetId);
-  if (matchedPreset) {
-    const presetNameInput = elements.presetName();
-    if (presetNameInput) {
-      presetNameInput.value = matchedPreset.name;
-    }
-  }
-
-  state.preferencesReady = true;
-  updateTemplatePreview();
-  setStatusMessage("");
-
-  if (legacyMatch || storedRestrictedRaw.length === 0) {
-    queueSave({ silent: true });
-  }
-}
-
-async function savePreferences() {
-  const restrictedUrls = parseMultiline(elements.restrictedUrls().value);
-  const markdownFormat = elements.markdownFormat().value || DEFAULT_MARKDOWN_FORMAT;
-  const obsidianPreferences = validateObsidianPreferences();
-  if (!obsidianPreferences) {
-    setStatusMessage("Fix vault and note path before saving.", "error");
-    scheduleSave.cancel();
-    return;
-  }
-
-  const dateFormatInput = elements.timestampDateFormat();
-  const timeFormatInput = elements.timestampTimeFormat();
-  const resolvedDateFormat = sanitizeFormatInput(dateFormatInput?.value, DEFAULT_EXPORT_DATE_FORMAT);
-  const resolvedTimeFormat = sanitizeFormatInput(timeFormatInput?.value, DEFAULT_EXPORT_TIME_FORMAT);
-  if (dateFormatInput) {
-    dateFormatInput.value = resolvedDateFormat;
-  }
-  if (timeFormatInput) {
-    timeFormatInput.value = resolvedTimeFormat;
-  }
-  state.timestampFormats = {
-    dateFormat: resolvedDateFormat,
-    timeFormat: resolvedTimeFormat
-  };
-
-  await browser.storage.sync.set({
-    restrictedUrls,
-    markdownFormat,
-    obsidianVault: obsidianPreferences.vault,
-    obsidianNotePath: obsidianPreferences.notePath,
-    frontmatterFieldNames: state.frontmatterFields,
-    [PRESET_STORAGE_KEY]: state.customPresets,
-    [FRONTMATTER_TITLE_STORAGE_KEY]: state.frontmatterTitleTemplate,
-    [FRONTMATTER_TAGS_STORAGE_KEY]: state.frontmatterTagTemplates,
-    [FRONTMATTER_COLLECTIONS_STORAGE_KEY]: state.frontmatterCollectionTemplates,
-    [FRONTMATTER_ENABLED_STORAGE_KEY]: state.frontmatterEnabled,
-    [TIMESTAMP_DATE_FORMAT_STORAGE_KEY]: resolvedDateFormat,
-    [TIMESTAMP_TIME_FORMAT_STORAGE_KEY]: resolvedTimeFormat
-  });
-
-  const wasSilent = state.pendingSilentSave;
-  state.pendingSilentSave = false;
-  if (!wasSilent) {
-    setStatusMessage("Changes saved.", "success");
-  }
+  setStatusMessage("Properties imported.", "success");
 }
 
 function attachEvents() {
-  elements.markdownFormat().addEventListener("input", () => {
-    state.selectedPresetId = CURRENT_TEMPLATE_OPTION_ID;
-    updateTemplatePreview();
-    refreshPresetPicker();
-    queueSave({ silent: true });
-  });
-
-  elements.frontmatterInputs().forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) {
-      return;
-    }
-    input.addEventListener("input", () => {
-      updateFrontmatterState();
-    });
-    input.addEventListener("blur", () => {
-      input.value = sanitizeFrontmatterInput(input.value);
-      updateFrontmatterState();
-    });
-  });
-
-  elements.frontmatterToggles().forEach((toggle) => {
-    if (!(toggle instanceof HTMLInputElement)) {
-      return;
-    }
-    toggle.addEventListener("change", handleFrontmatterToggleChange);
-  });
-
-  const titleTemplateInput = elements.frontmatterTitleTemplate();
-  if (titleTemplateInput instanceof HTMLTextAreaElement || titleTemplateInput instanceof HTMLInputElement) {
-    titleTemplateInput.addEventListener("input", () => {
-      state.frontmatterTitleTemplate = titleTemplateInput.value;
-      queueSave({ silent: true });
+  const markdownEditor = elements.markdownFormat();
+  if (markdownEditor) {
+    markdownEditor.addEventListener("input", () => {
+      // state.selectedPresetId = CURRENT_TEMPLATE_OPTION_ID; // Logic changed
       updateTemplatePreview();
-    });
-    titleTemplateInput.addEventListener("blur", () => {
-      state.frontmatterTitleTemplate = titleTemplateInput.value.trim() || DEFAULT_FRONTMATTER_TITLE_TEMPLATE;
-      titleTemplateInput.value = state.frontmatterTitleTemplate;
-      queueSave({ silent: true });
-      updateTemplatePreview();
-    });
-  }
-
-  const tagsInput = elements.frontmatterTags();
-  if (tagsInput instanceof HTMLTextAreaElement) {
-    tagsInput.addEventListener("input", () => {
-      updateFrontmatterListsState({ sanitize: false });
-    });
-    tagsInput.addEventListener("blur", () => {
-      updateFrontmatterListsState({ sanitize: true });
-    });
-  }
-
-  const collectionsInput = elements.frontmatterCollections();
-  if (collectionsInput instanceof HTMLTextAreaElement) {
-    collectionsInput.addEventListener("input", () => {
-      updateFrontmatterListsState({ sanitize: false });
-    });
-    collectionsInput.addEventListener("blur", () => {
-      updateFrontmatterListsState({ sanitize: true });
-    });
-  }
-
-  setFrontmatterToggles(state.frontmatterEnabled);
-
-  const presetNameInput = elements.presetName();
-  if (presetNameInput) {
-    presetNameInput.addEventListener("input", () => {
-      updatePresetButtons();
-    });
-  }
-
-  elements.presetFormats().addEventListener("change", (event) => {
-    const select = event.target;
-    state.selectedPresetId = select.value;
-    updatePresetDescription();
-    updatePresetButtons();
-  });
-
-  elements.applyPreset().addEventListener("click", () => {
-    applySelectedPreset();
-  });
-
-  elements.resetTemplate().addEventListener("click", () => {
-    resetTemplateToDefault();
-  });
-
-  elements.savePreset().addEventListener("click", () => {
-    saveCustomPreset().catch((error) => {
-      console.error("Failed to save preset", error);
-      setStatusMessage("Unable to save the preset. See console for details.", "error");
-    });
-  });
-
-  elements.deletePreset().addEventListener("click", () => {
-    deleteCurrentPreset().catch((error) => {
-      console.error("Failed to remove preset", error);
-      setStatusMessage("Unable to remove the preset. See console for details.", "error");
-    });
-  });
-
-  elements.importPresets().addEventListener("click", () => {
-    const input = elements.presetImportInput();
-    if (input) {
-      input.value = "";
-      input.click();
-    }
-  });
-
-  const importInput = elements.presetImportInput();
-  if (importInput) {
-    importInput.addEventListener("change", (event) => {
-      const { files } = event.target;
-      importCustomPresetsFromFileList(files).catch((error) => {
-        console.error("Preset import failed", error);
-        setStatusMessage("Preset import failed. See console for details.", "error");
-      });
-    });
-  }
-
-  elements.exportPresets().addEventListener("click", () => {
-    exportCustomPresets();
-  });
-
-  const vaultInput = elements.obsidianVault();
-  if (vaultInput) {
-    vaultInput.addEventListener("input", () => {
-      resetValidity(vaultInput);
-    });
-    vaultInput.addEventListener("blur", () => {
-      const preferences = validateObsidianPreferences();
-      if (preferences) {
-        queueSave();
-      }
-    });
-  }
-
-  const notePathInput = elements.obsidianNotePath();
-  if (notePathInput) {
-    notePathInput.addEventListener("input", () => {
-      resetValidity(notePathInput);
-    });
-    notePathInput.addEventListener("blur", () => {
-      const preferences = validateObsidianPreferences();
-      if (preferences) {
-        queueSave();
-      }
-    });
-  }
-
-  const dateFormatInput = elements.timestampDateFormat();
-  if (dateFormatInput) {
-    dateFormatInput.addEventListener("input", () => {
-      const value =
-        dateFormatInput.value && dateFormatInput.value.trim().length > 0
-          ? dateFormatInput.value.trim()
-          : DEFAULT_EXPORT_DATE_FORMAT;
-      state.timestampFormats.dateFormat = value;
-      updateTemplatePreview();
+      // refreshPresetPicker(); // Logic changed
       queueSave({ silent: true });
     });
-    dateFormatInput.addEventListener("blur", () => {
-      const value = sanitizeFormatInput(dateFormatInput.value, DEFAULT_EXPORT_DATE_FORMAT);
-      dateFormatInput.value = value;
-      state.timestampFormats.dateFormat = value;
-      updateTemplatePreview();
+    markdownEditor.addEventListener("blur", () => {
       queueSave();
     });
   }
 
-  const timeFormatInput = elements.timestampTimeFormat();
-  if (timeFormatInput) {
-    timeFormatInput.addEventListener("input", () => {
-      const value =
-        timeFormatInput.value && timeFormatInput.value.trim().length > 0
-          ? timeFormatInput.value.trim()
-          : DEFAULT_EXPORT_TIME_FORMAT;
-      state.timestampFormats.timeFormat = value;
-      updateTemplatePreview();
-      queueSave({ silent: true });
+  frontmatterController.bindEvents();
+  generalController.bindEvents();
+  resetController.bindEvents();
+
+  const propertiesImportBtn = elements.propertiesImport();
+  const propertiesExportBtn = elements.propertiesExport();
+  const propertiesImportInput = elements.propertiesImportInput();
+
+  if (propertiesExportBtn) {
+    propertiesExportBtn.addEventListener("click", exportPropertiesConfig);
+  }
+
+  if (propertiesImportBtn && propertiesImportInput) {
+    propertiesImportBtn.addEventListener("click", () => {
+      propertiesImportInput.click();
     });
-    timeFormatInput.addEventListener("blur", () => {
-      const value = sanitizeFormatInput(timeFormatInput.value, DEFAULT_EXPORT_TIME_FORMAT);
-      timeFormatInput.value = value;
-      state.timestampFormats.timeFormat = value;
-      updateTemplatePreview();
-      queueSave();
+
+    propertiesImportInput.addEventListener("change", async (event) => {
+      const file = event.target?.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        applyImportedPropertiesConfig(parsed);
+      } catch (error) {
+        console.error("Unable to import properties", error);
+        setStatusMessage("Invalid properties JSON file.", "error");
+      } finally {
+        propertiesImportInput.value = "";
+      }
     });
   }
 
   elements.restrictedUrls().addEventListener("input", () => {
     queueSave({ silent: true });
   });
-
-  const generalReset = elements.resetGeneral();
-  if (generalReset) {
-    generalReset.addEventListener("click", () => {
-      resetGeneralPreferences();
-    });
-  }
-
-  const propertyReset = elements.resetProperties();
-  if (propertyReset) {
-    propertyReset.addEventListener("click", () => {
-      resetPropertyPreferences();
-    });
-  }
-
-  const templateReset = elements.resetTemplates();
-  if (templateReset) {
-    templateReset.addEventListener("click", () => {
-      resetTemplatePreferences();
-    });
-  }
-
-  const restrictedReset = elements.resetRestricted();
-  if (restrictedReset) {
-    restrictedReset.addEventListener("click", () => {
-      resetRestrictedPreferences();
-    });
-  }
-
-  const resetAllButton = elements.resetAll();
-  if (resetAllButton) {
-    resetAllButton.addEventListener("click", () => {
-      resetAllPreferences();
-    });
-  }
-
-  const restrictedImportButton = elements.restrictedImport();
-  if (restrictedImportButton) {
-    restrictedImportButton.addEventListener("click", () => {
-      const input = elements.restrictedImportInput();
-      if (input) {
-        input.value = "";
-        input.click();
-      }
-    });
-  }
-
-  const restrictedImportInput = elements.restrictedImportInput();
-  if (restrictedImportInput) {
-    restrictedImportInput.addEventListener("change", (event) => {
-      importRestrictedUrlsFromFileList(event.target.files).catch((error) => {
-        console.error("Restricted URL import failed", error);
-        setStatusMessage("Restricted URL import failed. See console for details.", "error");
-      });
-    });
-  }
-
-  const restrictedExportButton = elements.restrictedExport();
-  if (restrictedExportButton) {
-    restrictedExportButton.addEventListener("click", () => {
-      exportRestrictedUrls();
-    });
-  }
 }
 
 function renderPlatformHint() {
@@ -1947,14 +828,5 @@ function renderExtensionVersion() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  initializeSectionNavigation().catch((error) => {
-    console.error("Unable to set up section navigation", error);
-  });
-  attachEvents();
-  renderPlatformHint();
-  renderExtensionVersion();
-  loadPreferences().catch((error) => {
-    console.error("Unable to load stored preferences", error);
-    setStatusMessage("Unable to load stored preferences.", "error");
-  });
+  bootstrapController.start();
 });

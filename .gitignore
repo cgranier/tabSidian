@@ -32,7 +32,12 @@ coverage/
 .env*
 
 # Existing custom ignores
-.cursorrules
+# .cursorrules
 repomix-output.txt
 
 TODO.md
+
+.dev/codex-handoff.md
+
+.cursorrules
+GEMINI.md

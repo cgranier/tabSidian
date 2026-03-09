@@ -172,7 +172,7 @@ function updateActionLabel() {
     return;
   }
   const selectedVault = elements.vaultSelect().value;
-  saveButton.textContent = selectedVault ? "Save to Obsidian" : "Save to File";
+  saveButton.textContent = selectedVault ? "Add to Obsidian" : "Download Markdown";
 }
 
 function setSaveStatus(message, isError = false) {
@@ -208,7 +208,9 @@ function bindEvents() {
 
   elements.saveBtn().addEventListener("click", async () => {
     const saveButton = elements.saveBtn();
+    const originalLabel = saveButton.textContent;
     saveButton.disabled = true;
+    saveButton.textContent = "Saving...";
     setSaveStatus("Saving...");
 
     const templateId = elements.templateSelect().value;
@@ -230,6 +232,7 @@ function bindEvents() {
       if (response && response.ok === false) {
         setSaveStatus(response.error || "Unable to save tabs. Check extension logs.", true);
         saveButton.disabled = false;
+        saveButton.textContent = originalLabel;
         return;
       }
 
@@ -237,6 +240,7 @@ function bindEvents() {
     } catch (error) {
       setSaveStatus(error?.message || "Unable to save tabs. Check extension logs.", true);
       saveButton.disabled = false;
+      saveButton.textContent = originalLabel;
     }
   });
 }

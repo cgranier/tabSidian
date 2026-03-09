@@ -163,6 +163,12 @@ select:focus, input:focus {
   transform: translateY(-1px);
 }
 
+.btn-primary:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.15) brightness(0.92);
+  transform: none;
+}
+
 .full-width {
   width: 100%;
 }

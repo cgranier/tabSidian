@@ -2,6 +2,7 @@
 
 ## Purpose
 - Build and maintain tabSidian, a cross-browser extension that exports tabs to Obsidian-friendly Markdown and supports download/share fallbacks.
+- Current implementation focus: PRD v3 Options + Popup UX, multi-vault routing, and regression-safe cross-browser behavior.
 
 ## Environment
 - Node 18+ minimum; current local workflow validated on Node 24 via `nvm`.
@@ -23,19 +24,25 @@
 - Main orchestrators:
   - `src/background/index.js`
   - `src/options/index.js`
+  - `src/popup/index.js`
 - Options architecture modules:
   - `src/options/sections/*.js`
+- Popup view state helpers:
+  - `src/popup/viewState.js`
 - Shared platform logic:
   - `src/platform/storage.js`
   - `src/platform/saveTarget.js`
   - `src/platform/pathTemplate.js`
   - `src/platform/markdown.js`
+- Popup behavior tests:
+  - `tests/popupViewState.test.mjs`
 
 ## Constraints
 - Must preserve cross-browser behavior (Chrome/Firefox/Edge/Safari targets).
 - Must keep manifest validation and tests passing before handoff/commit.
 - Avoid regressing fallback flows:
   - Obsidian protocol failure -> Markdown download/share fallback.
+- Popup host sizing is browser-sensitive; fixed popup dimensions are currently used to prevent collapse/overflow regressions.
 
 ## Conventions
 - Refactor in small slices with test/build validation after each slice.
@@ -43,6 +50,5 @@
 - Add focused unit tests for new modules or bugfix regressions.
 
 ## Open Questions
-- Phase 2 branch timing:
-  - start immediately from current Phase 1 branch, or checkpoint/tag first.
-- Phase 2 top priority item selection from PRD backlog.
+- Should popup preview start collapsed by default, or remain expanded for first-time discoverability?
+- Should we add end-to-end popup UI tests (Playwright-style) to protect against host rendering regressions?

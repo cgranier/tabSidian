@@ -91,6 +91,29 @@ body {
   padding-right: 2px;
 }
 
+.sidebar-template-item {
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  text-align: left;
+  font-size: 15px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sidebar-template-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-template-item.active {
+  background-color: rgba(124, 58, 237, 0.14);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
 /* Main Content */
 .main-content {
   flex: 1;

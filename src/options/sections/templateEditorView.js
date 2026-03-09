@@ -7,7 +7,7 @@ export function renderTemplateSidebarItems(container, presets, selectedId, onSel
   presets.forEach((preset) => {
     const item = document.createElement("button");
     item.type = "button";
-    item.className = "template-list-item";
+    item.className = "sidebar-template-item";
     if (preset.id === selectedId) {
       item.classList.add("active");
     }

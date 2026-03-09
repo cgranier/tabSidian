@@ -39,6 +39,13 @@
         >
           Templates
         </a>
+        <div id="sidebar-template-list" class="sidebar-sublist hidden" aria-label="Template presets">
+          <div class="sidebar-sublist-title">Templates</div>
+          <button id="create-template-btn" class="btn-primary sidebar-template-create">New template</button>
+          <div id="sidebar-template-items" class="sidebar-template-items">
+            <!-- Templates injected here -->
+          </div>
+        </div>
 
         <a
           id="tab-restricted"
@@ -142,61 +149,49 @@
       <!-- Templates Section -->
       <section id="section-templates" class="section-panel" data-section-panel="templates">
         <h2>Templates</h2>
-        <div class="template-workspace">
-          <aside class="template-library" aria-label="Template presets">
-            <div class="template-library-header">
-              <h3>Template Presets</h3>
-              <button id="create-template-btn" class="btn-primary">New template</button>
-            </div>
-            <div id="template-list-items" class="template-list-items">
-              <!-- Templates injected here -->
-            </div>
-          </aside>
-
-          <div class="template-grid">
-            <div class="template-editor">
-              <div class="form-group">
-                <label for="template-name">Template Name</label>
-                <input type="text" id="template-name" />
-              </div>
-
-              <div class="form-group">
-                <label for="template-filename">Default Filename</label>
-                <input type="text" id="template-filename" placeholder="Tabs - {{date}}" />
-              </div>
-
-              <div class="form-group">
-                <label for="template-folder">Default Folder</label>
-                <input type="text" id="template-folder" placeholder="01-Inbox" />
-              </div>
-
-              <div class="form-group">
-                <label for="template-vault">Default Vault</label>
-                <select id="template-vault">
-                  <option value="">Use Global Default</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="template-content">Content Body</label>
-                <textarea id="template-content" rows="15" style="font-family: monospace;"></textarea>
-              </div>
-
-              <div class="flex-row flex-between">
-                <button id="save-template-btn" class="btn-primary">Save Template</button>
-                <button id="delete-template-btn" class="btn-danger">Delete</button>
-              </div>
+        <div class="template-grid">
+          <div class="template-editor">
+            <div class="form-group">
+              <label for="template-name">Template Name</label>
+              <input type="text" id="template-name" />
             </div>
 
-            <aside class="template-preview">
-              <div class="preview-header">
-                <strong>Preview</strong>
-                <span>Sample data preview</span>
-              </div>
-              <pre class="preview-output" data-template-preview></pre>
-              <div class="template-feedback" data-template-feedback></div>
-            </aside>
+            <div class="form-group">
+              <label for="template-filename">Default Filename</label>
+              <input type="text" id="template-filename" placeholder="Tabs - {{date}}" />
+            </div>
+
+            <div class="form-group">
+              <label for="template-folder">Default Folder</label>
+              <input type="text" id="template-folder" placeholder="01-Inbox" />
+            </div>
+
+            <div class="form-group">
+              <label for="template-vault">Default Vault</label>
+              <select id="template-vault">
+                <option value="">Use Global Default</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="template-content">Content Body</label>
+              <textarea id="template-content" rows="15" style="font-family: monospace;"></textarea>
+            </div>
+
+            <div class="flex-row flex-between">
+              <button id="save-template-btn" class="btn-primary">Save Template</button>
+              <button id="delete-template-btn" class="btn-danger">Delete</button>
+            </div>
           </div>
+
+          <aside class="template-preview">
+            <div class="preview-header">
+              <strong>Preview</strong>
+              <span>Sample data preview</span>
+            </div>
+            <pre class="preview-output" data-template-preview></pre>
+            <div class="template-feedback" data-template-feedback></div>
+          </aside>
         </div>
 
         <div class="hint mt-4" data-template-docs>

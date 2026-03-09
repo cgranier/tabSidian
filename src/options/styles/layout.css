@@ -100,6 +100,30 @@ body {
   flex-direction: column;
 }
 
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-footer .version {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.sidebar-footer .changelog-link {
+  font-size: 13px;
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.sidebar-footer .changelog-link:hover {
+  text-decoration: underline;
+}
+
 .section-panel {
   display: none;
   max-width: 800px;

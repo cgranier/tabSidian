@@ -11,33 +11,37 @@
 html,
 body {
   margin: 0;
-  padding: 10px;
+  padding: 0;
   width: 380px;
   min-width: 380px;
   max-width: 380px;
+  height: 600px;
+  min-height: 600px;
+  max-height: 600px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--text-color);
   background-color: var(--bg-color);
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .popup-container {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
   border-radius: 14px;
   border: 1px solid var(--border-color);
   background: var(--panel-bg);
   overflow: hidden;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -62,10 +66,12 @@ body {
 }
 
 .content {
-  padding: 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 .form-group {
@@ -108,7 +114,7 @@ select:focus, input:focus {
 
 .template-preview {
   margin: 0;
-  max-height: 180px;
+  max-height: 150px;
   overflow: auto;
   padding: 10px;
   border: 1px solid var(--border-color);
@@ -134,9 +140,10 @@ select:focus, input:focus {
 }
 
 .footer {
-  padding: 14px 16px;
+  padding: 10px 14px;
   border-top: 1px solid var(--border-color);
   background-color: #fcfcff;
+  flex-shrink: 0;
 }
 
 .btn-primary {

@@ -243,6 +243,23 @@ function bindEvents() {
       saveButton.textContent = originalLabel;
     }
   });
+
+  document.addEventListener("keydown", (event) => {
+    const isSubmitShortcut = (event.ctrlKey || event.metaKey) && event.key === "Enter";
+    if (isSubmitShortcut) {
+      event.preventDefault();
+      const saveButton = elements.saveBtn();
+      if (saveButton && !saveButton.disabled) {
+        saveButton.click();
+      }
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      window.close();
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", initialize);

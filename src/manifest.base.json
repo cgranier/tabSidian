@@ -9,7 +9,8 @@
   },
   "action": {
     "default_icon": "icon48.png",
-    "default_title": "tabSidian"
+    "default_title": "tabSidian",
+    "default_popup": "popup.html"
   },
   "permissions": ["tabs", "activeTab", "storage", "notifications", "clipboardWrite", "tabGroups"],
   "optional_permissions": [],

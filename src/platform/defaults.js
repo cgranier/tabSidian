@@ -71,6 +71,60 @@ export const DEFAULT_RESTRICTED_URLS = [
 
 export const DEFAULT_OBSIDIAN_NOTE_PATH = "tabSidian/tab-export-{timestamp}.md";
 
+export const DEFAULT_VAULTS = [];
+
+export const DEFAULT_TEMPLATES = [];
+
+export const BUILT_IN_PRESETS = [
+  {
+    id: "builtin:default",
+    name: "Default headings",
+    description: "Frontmatter with level-two headings per tab.",
+    template: DEFAULT_MARKDOWN_FORMAT
+  },
+  {
+    id: "builtin:list",
+    name: "Compact list",
+    description: "Frontmatter followed by a bullet list of tabs.",
+    template: `{{{frontmatter}}}
+{{#tabs}}
+- [{{title}}]({{url}})
+{{/tabs}}`
+  },
+  {
+    id: "builtin:metadata",
+    name: "Metadata summary",
+    description: "Adds hostname and timestamps under each tab entry.",
+    template: `{{{frontmatter}}}
+{{#tabs}}
+## {{title}}
+- URL: {{url}}
+- Host: {{hostname}}
+{{#favicon}}- Favicon: {{favicon}}{{/favicon}}
+{{#timestamps.lastAccessed}}- Last visited: {{timestamps.lastAccessed}} ({{timestamps.lastAccessedRelative}}){{/timestamps.lastAccessed}}
+{{^timestamps.lastAccessed}}- Last visited: unknown{{/timestamps.lastAccessed}}
+
+{{/tabs}}`
+  },
+  {
+    id: "builtin:grouped",
+    name: "Grouped headings",
+    description: "Organises output by tab group when available.",
+    template: `{{{frontmatter}}}
+{{#groups}}
+## {{title}}
+{{#tabs}}- [{{title}}]({{url}})
+{{/tabs}}
+
+{{/groups}}
+{{#ungroupedTabs}}
+## {{title}}
+[{{url}}]({{url}})
+
+{{/ungroupedTabs}}`
+  }
+];
+
 export {
   DEFAULT_MARKDOWN_FORMAT,
   DEFAULT_FRONTMATTER_FIELDS,

@@ -720,7 +720,7 @@ export function formatTabsMarkdown(tabs, template = DEFAULT_MARKDOWN_FORMAT, opt
 
 const SAMPLE_WINDOW = {
   id: 42,
-  title: "Research – tabSidian",
+  title: "Sample Workspace",
   focused: true,
   incognito: false
 };
@@ -731,9 +731,9 @@ const SAMPLE_NOW_MS = SAMPLE_NOW.getTime();
 const SAMPLE_TABS = [
   {
     id: 1,
-    title: "tabSidian · GitHub",
-    url: "https://github.com/cgranier/tabSidian",
-    favIconUrl: "https://github.githubassets.com/favicons/favicon.svg",
+    title: "Project Notes",
+    url: "https://example.com/project-notes",
+    favIconUrl: "",
     active: true,
     highlighted: true,
     pinned: false,
@@ -747,9 +747,9 @@ const SAMPLE_TABS = [
   },
   {
     id: 2,
-    title: "Obsidian Forums",
-    url: "https://forum.obsidian.md/",
-    favIconUrl: "https://forum.obsidian.md/uploads/default/original/1X/obsidian-icon.png",
+    title: "Team Updates",
+    url: "https://example.com/team-updates",
+    favIconUrl: "",
     active: false,
     highlighted: true,
     pinned: false,
@@ -763,9 +763,9 @@ const SAMPLE_TABS = [
   },
   {
     id: 3,
-    title: "Inspiration Board",
-    url: "https://www.figma.com/file/abc123/project-mockups",
-    favIconUrl: "https://static.figma.com/app/icon/1/icon-192.png",
+    title: "Design Draft",
+    url: "https://example.com/design-draft",
+    favIconUrl: "",
     active: false,
     highlighted: false,
     pinned: false,
@@ -779,9 +779,9 @@ const SAMPLE_TABS = [
   },
   {
     id: 4,
-    title: "API Reference",
-    url: "https://developer.mozilla.org/en-US/docs/Web/API/Clipboard",
-    favIconUrl: "https://developer.mozilla.org/static/img/favicon144.png",
+    title: "Reference Page",
+    url: "https://example.com/reference",
+    favIconUrl: "",
     active: false,
     highlighted: false,
     pinned: false,

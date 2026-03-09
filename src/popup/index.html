@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tabSidian</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <div class="popup-container">
+    <header class="header">
+      <div class="logo">tabSidian</div>
+      <button id="settings-btn" class="icon-btn" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+        </svg>
+      </button>
+    </header>
+
+    <main class="content">
+      <div class="form-group">
+        <label for="template-select">Template</label>
+        <select id="template-select">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="vault-select">Vault</label>
+        <select id="vault-select">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="filename-input">Filename</label>
+        <input type="text" id="filename-input" placeholder="Tabs - {{date}}">
+      </div>
+
+      <div class="form-group">
+        <label for="folder-input">Folder</label>
+        <input type="text" id="folder-input" placeholder="01-Inbox">
+      </div>
+
+      <div class="form-group">
+        <label for="template-preview">Preview</label>
+        <pre id="template-preview" class="template-preview"></pre>
+      </div>
+
+      <div class="preview-info">
+        <span id="tab-count">Loading tabs...</span>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <button id="save-btn" class="btn-primary full-width">Save to Obsidian</button>
+      <div id="save-status" class="save-status" aria-live="polite"></div>
+    </footer>
+  </div>
+</body>
+</html>

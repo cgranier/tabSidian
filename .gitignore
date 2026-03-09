@@ -32,7 +32,7 @@ coverage/
 .env*
 
 # Existing custom ignores
-.cursorrules
+# .cursorrules
 repomix-output.txt
 
 TODO.md

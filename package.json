@@ -13,7 +13,7 @@
     "build:safari": "TARGET_BROWSER=safari node scripts/build.js",
     "build:all": "node scripts/build.js --all",
     "test": "node --test",
-    "test:compat": "node --test tests",
+    "test:compat": "node --test \"tests/**/*.mjs\"",
     "validate:manifests": "node scripts/validate-manifests.js",
     "ci": "npm run build:all && npm run validate:manifests && npm run test:compat"
   },

@@ -19,10 +19,10 @@ const STATIC_FILES = [
   { from: "src/assets/icons/icon128.png", to: "icon128.png" },
   { from: "src/share/index.html", to: "share.html" },
   { from: "src/assets/support/bmc-button.svg", to: "support/bmc-button.svg" },
-  {
-    from: "src/assets/support/coffee-qr-code-opt.png",
-    to: "support/coffee-qr-code-opt.png",
-  },
+  { from: "src/assets/support/coffee-qr-code-opt.png", to: "support/coffee-qr-code-opt.png" },
+  { from: "src/popup/index.html", to: "popup.html" },
+  { from: "src/popup/styles.css", to: "popup.css" },
+  { from: "src/options/styles/layout.css", to: "styles/layout.css" }
 ];
 
 function getTargetsFromCli() {

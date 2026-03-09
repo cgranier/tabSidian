@@ -1,8 +1,8 @@
 import browser from "../platform/browser.js";
 import {
   DEFAULT_MARKDOWN_FORMAT,
-  DEFAULT_OBSIDIAN_NOTE_PATH,
   DEFAULT_RESTRICTED_URLS,
+  BUILT_IN_PRESETS,
   DEFAULT_FRONTMATTER_TITLE_TEMPLATE,
   DEFAULT_FRONTMATTER_TAG_TEMPLATES,
   DEFAULT_FRONTMATTER_COLLECTION_TEMPLATES,
@@ -16,9 +16,21 @@ import {
   resolveFrontmatterFields,
   resolveFrontmatterEnabled
 } from "../platform/markdown.js";
-import { sanitizeRestrictedUrls, shouldProcessTab, isRestrictedUrl } from "../platform/tabFilters.js";
+import { sanitizeRestrictedUrls, shouldProcessTab, isRestrictedUrl, selectSavableTabs } from "../platform/tabFilters.js";
 import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
 import { buildObsidianUrl, OBSIDIAN_NEW_SCHEME } from "../platform/obsidian.js";
+import { applyPathTemplate } from "../platform/pathTemplate.js";
+import { setupMigration } from "./migration.js";
+import {
+  getStoredValues,
+  getSaveTargetDefaults,
+  getTemplates,
+  getVaults,
+  resolveSaveTarget,
+  ensureStorageMigration
+} from "../platform/storage.js";
+
+setupMigration();
 const NOTIFICATION_ICON = "icon128.png";
 // Windows and macOS custom protocol handlers begin rejecting requests above ~20k characters.
 // Firefox tolerates larger URIs, so it keeps the previous ~60k ceiling; Chromium-based builds use ~18k.
@@ -113,13 +125,13 @@ function sanitizeNotePath(value) {
 }
 
 function applyNotePathTemplate(notePath, formattedTimestamp, timestamp) {
-  let resolved = notePath.replace(/\{timestamp\}/g, formattedTimestamp);
+  let resolved;
   if (timestamp && timestamp.local) {
     const dateSegment = sanitizeFileNameSegment(timestamp.local.date, detectPlatform());
     const timeSegment = sanitizeFileNameSegment(timestamp.local.time, detectPlatform());
-    resolved = resolved.replace(/\{date\}/g, dateSegment).replace(/\{time\}/g, timeSegment);
+    resolved = applyPathTemplate(notePath, formattedTimestamp, dateSegment, timeSegment);
   } else {
-    resolved = resolved.replace(/\{date\}/g, formattedTimestamp).replace(/\{time\}/g, formattedTimestamp);
+    resolved = applyPathTemplate(notePath, formattedTimestamp, formattedTimestamp, formattedTimestamp);
   }
   return resolved;
 }
@@ -515,12 +527,11 @@ async function resolveTabGroups(tabs = []) {
   return groups;
 }
 
-async function resolveUserPreferences() {
-  const storage = await browser.storage.sync.get([
+async function resolveUserPreferences(overrides = {}) {
+  await ensureStorageMigration();
+  const storage = await getStoredValues([
     "restrictedUrls",
     "markdownFormat",
-    "obsidianVault",
-    "obsidianNotePath",
     "frontmatterFieldNames",
     "frontmatterTitleTemplate",
     "frontmatterTagTemplates",
@@ -530,19 +541,50 @@ async function resolveUserPreferences() {
     "exportTimeFormat"
   ]);
 
+  // Handle Overrides
+  let format = typeof storage.markdownFormat === "string" && storage.markdownFormat.trim().length > 0
+    ? storage.markdownFormat
+    : DEFAULT_MARKDOWN_FORMAT;
+
+  const saveTargetDefaults = await getSaveTargetDefaults();
+  let obsidianVault = "";
+  let obsidianNotePathSource = saveTargetDefaults.folder
+    ? `${saveTargetDefaults.folder}/${saveTargetDefaults.filenamePattern}`
+    : saveTargetDefaults.filenamePattern;
+
+  const vaults = await getVaults();
+  const globalDefaultVault = vaults.find((vault) => vault.isDefault) ?? vaults[0];
+  obsidianVault = sanitizeText(globalDefaultVault?.name);
+
+  if (overrides.templateId) {
+    const templates = await getTemplates();
+    const template = [...BUILT_IN_PRESETS, ...templates].find((t) => t.id === overrides.templateId);
+    if (template) {
+      format = template.template;
+      const resolvedTarget = resolveSaveTarget(
+        template,
+        globalDefaultVault?.name,
+        saveTargetDefaults.folder,
+        saveTargetDefaults.filenamePattern
+      );
+      const effectiveVaultName = overrides.vaultName || resolvedTarget.vault;
+      const effectiveFilename = overrides.filename || resolvedTarget.filename;
+      const folderOverride = sanitizeText(overrides.folder);
+      const folder = folderOverride || resolvedTarget.folder || "";
+
+      obsidianVault = effectiveVaultName;
+      obsidianNotePathSource = folder ? `${folder}/${effectiveFilename}` : effectiveFilename;
+    }
+  }
+
+  if (!obsidianVault) {
+    obsidianVault = sanitizeText(globalDefaultVault?.name);
+  }
+
   const rawRestricted = Array.isArray(storage.restrictedUrls) && storage.restrictedUrls.length
     ? storage.restrictedUrls
     : DEFAULT_RESTRICTED_URLS;
 
-  const format = typeof storage.markdownFormat === "string" && storage.markdownFormat.trim().length > 0
-    ? storage.markdownFormat
-    : DEFAULT_MARKDOWN_FORMAT;
-
-  const obsidianVault = sanitizeText(storage.obsidianVault);
-  const obsidianNotePathSource =
-    typeof storage.obsidianNotePath === "string" && storage.obsidianNotePath.trim().length > 0
-      ? storage.obsidianNotePath
-      : DEFAULT_OBSIDIAN_NOTE_PATH;
   const obsidianNotePath = sanitizeNotePath(obsidianNotePathSource);
   const frontmatterFields = resolveFrontmatterFields(
     storage && typeof storage.frontmatterFieldNames === "object" ? storage.frontmatterFieldNames : undefined
@@ -616,9 +658,7 @@ async function getActiveWindowTabs() {
 }
 
 function selectTabs(tabs, restrictedUrls) {
-  const selectedTabs = tabs.filter((tab) => tab.highlighted);
-  const processOnlySelectedTabs = selectedTabs.length > 1;
-  return tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs));
+  return selectSavableTabs(tabs, restrictedUrls);
 }
 
 async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian }) {
@@ -740,7 +780,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsid
   };
 }
 
-async function handleClick() {
+async function processExport(overrides = {}) {
   const {
     restrictedUrls,
     markdownFormat,
@@ -751,7 +791,8 @@ async function handleClick() {
     frontmatterCollectionTemplates,
     timestampFormats,
     obsidian
-  } = await resolveUserPreferences();
+  } = await resolveUserPreferences(overrides);
+
   const { window: activeWindow, tabs, tabGroups } = await getActiveWindowTabs();
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
@@ -777,7 +818,7 @@ async function handleClick() {
     frontmatterCollectionTemplates,
     timestampFormats
   });
-  const filename = `${formattedTimestamp}_OpenTabs.md`;
+  const filename = obsidian?.notePath || `${formattedTimestamp}_OpenTabs.md`;
 
   const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian });
   if (obsidianResult.success) {
@@ -794,13 +835,26 @@ const actionApi = browser.action ?? browser.browserAction;
 
 if (actionApi?.onClicked?.addListener) {
   actionApi.onClicked.addListener(() => {
-    handleClick().catch((error) => {
-      console.error("tabSidian failed to export tabs:", error);
+    processExport().catch((error) => {
+      console.error("tabSidian failed to process tab click", error);
     });
   });
 } else {
   console.error("tabSidian could not bind the browser action click handler.");
 }
+
+browser.runtime.onMessage.addListener((message) => {
+  if (!message || message.type !== "SAVE_TABS") {
+    return undefined;
+  }
+
+  return processExport(message.payload)
+    .then(() => ({ ok: true }))
+    .catch((error) => {
+      console.error("tabSidian failed to process save message", error);
+      return { ok: false, error: error?.message ?? "Export failed." };
+    });
+});
 
 if (browser?.runtime?.onInstalled?.addListener) {
   browser.runtime.onInstalled.addListener(({ reason }) => {

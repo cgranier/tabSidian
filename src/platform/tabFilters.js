@@ -33,6 +33,16 @@ export function shouldProcessTab(tab, restrictedUrls = [], processOnlySelectedTa
   return Boolean(tab.highlighted);
 }
 
+export function selectSavableTabs(tabs = [], restrictedUrls = []) {
+  if (!Array.isArray(tabs) || tabs.length === 0) {
+    return [];
+  }
+
+  const selectedTabs = tabs.filter((tab) => tab?.highlighted);
+  const processOnlySelectedTabs = selectedTabs.length > 1;
+  return tabs.filter((tab) => shouldProcessTab(tab, restrictedUrls, processOnlySelectedTabs));
+}
+
 export function sanitizeRestrictedUrls(urls = []) {
   return urls.filter((entry) => typeof entry === "string" && entry.trim().length > 0);
 }

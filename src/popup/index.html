@@ -28,20 +28,21 @@
       </div>
 
       <div class="form-group">
-        <label for="vault-select">Vault</label>
-        <select id="vault-select">
-          <!-- Populated dynamically -->
-        </select>
-      </div>
-
-      <div class="form-group">
         <label for="filename-input">Filename</label>
         <input type="text" id="filename-input" placeholder="Tabs - {{date}}">
       </div>
 
-      <div class="form-group">
-        <label for="folder-input">Folder</label>
-        <input type="text" id="folder-input" placeholder="01-Inbox">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="vault-select">Vault</label>
+          <select id="vault-select">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="folder-input">Folder</label>
+          <input type="text" id="folder-input" placeholder="01-Inbox">
+        </div>
       </div>
 
       <div class="form-group">
@@ -49,7 +50,7 @@
         <pre id="template-preview" class="template-preview"></pre>
       </div>
 
-      <div class="preview-info">
+      <div class="preview-info card">
         <span id="tab-count">Loading tabs...</span>
       </div>
     </main>

@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appendVault, buildVault, removeVaultAtIndex, setDefaultVaultByIndex } from "../src/options/sections/vaults.js";
+import {
+  appendVault,
+  buildVault,
+  moveVaultByIndex,
+  removeVaultAtIndex,
+  setDefaultVaultByIndex
+} from "../src/options/sections/vaults.js";
 
 test("buildVault normalizes names and returns null for empty values", () => {
   const vault = buildVault("  Work Vault  ");
@@ -52,3 +58,24 @@ test("appendVault appends non-null entries", () => {
   assert.equal(seed.length, 1);
 });
 
+test("moveVaultByIndex reorders list and updates default to top entry", () => {
+  const result = moveVaultByIndex(
+    [
+      { id: "1", name: "A", isDefault: true },
+      { id: "2", name: "B", isDefault: false },
+      { id: "3", name: "C", isDefault: false }
+    ],
+    2,
+    0
+  );
+
+  assert.equal(result.changed, true);
+  assert.deepEqual(
+    result.vaults.map((vault) => ({ name: vault.name, isDefault: vault.isDefault })),
+    [
+      { name: "C", isDefault: true },
+      { name: "A", isDefault: false },
+      { name: "B", isDefault: false }
+    ]
+  );
+});

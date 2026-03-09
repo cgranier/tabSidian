@@ -61,7 +61,8 @@ import {
   buildVault,
   appendVault,
   removeVaultAtIndex,
-  setDefaultVaultByIndex
+  setDefaultVaultByIndex,
+  moveVaultByIndex
 } from "./sections/vaults.js";
 import { createVaultController } from "./sections/vaultsController.js";
 import {
@@ -201,6 +202,7 @@ const vaultController = createVaultController({
   appendVault,
   removeVaultAtIndex,
   setDefaultVaultByIndex,
+  moveVaultByIndex,
   getVaults,
   saveVaults,
   populateVaultSelect: (select) => populateTemplateVaultSelect(select, state.vaults),

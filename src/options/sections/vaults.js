@@ -55,3 +55,25 @@ export function setDefaultVaultByIndex(vaults, index) {
   return { vaults: [promoted, ...reset], changed: true };
 }
 
+export function moveVaultByIndex(vaults, fromIndex, toIndex) {
+  const list = Array.isArray(vaults) ? [...vaults] : [];
+  if (
+    fromIndex < 0 ||
+    fromIndex >= list.length ||
+    toIndex < 0 ||
+    toIndex >= list.length ||
+    fromIndex === toIndex
+  ) {
+    return { vaults: list, changed: false };
+  }
+
+  const [moved] = list.splice(fromIndex, 1);
+  list.splice(toIndex, 0, moved);
+
+  const normalized = list.map((vault, index) => ({
+    ...vault,
+    isDefault: index === 0
+  }));
+
+  return { vaults: normalized, changed: true };
+}

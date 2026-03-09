@@ -5,11 +5,21 @@ export function createVaultController({
   appendVault,
   removeVaultAtIndex,
   setDefaultVaultByIndex,
+  moveVaultByIndex,
   getVaults,
   saveVaults,
   populateVaultSelect,
   setStatusMessage
 }) {
+  let dragSourceIndex = null;
+
+  function updateVaultWarning() {
+    if (state.vaults.length > 0) {
+      return;
+    }
+    setStatusMessage("No vault configured. Saves will use download/share fallback instead of Obsidian URI.", "warning");
+  }
+
   function renderVaultList() {
     const list = elements.vaultList();
     if (!list) return;
@@ -19,17 +29,19 @@ export function createVaultController({
     state.vaults.forEach((vault, index) => {
       const item = document.createElement("div");
       item.className = "vault-item flex-row flex-between";
-      item.style.padding = "10px";
-      item.style.border = "1px solid #eee";
-      item.style.marginBottom = "5px";
-      item.style.borderRadius = "4px";
-      item.style.backgroundColor = index === 0 ? "#f9fafb" : "white";
+      item.dataset.index = String(index);
+      item.draggable = state.vaults.length > 1;
 
       const nameSpan = document.createElement("span");
+      nameSpan.className = "vault-name";
       nameSpan.textContent = vault.name;
       if (index === 0) {
-        nameSpan.style.fontWeight = "bold";
         nameSpan.textContent += " (Default)";
+        item.classList.add("is-default");
+      }
+
+      if (item.draggable) {
+        item.classList.add("is-draggable");
       }
 
       const actions = document.createElement("div");
@@ -49,6 +61,30 @@ export function createVaultController({
         removeBtn.className = "btn-danger";
         removeBtn.onclick = () => removeVault(index);
         actions.appendChild(removeBtn);
+      }
+
+      if (item.draggable) {
+        item.addEventListener("dragstart", () => {
+          dragSourceIndex = index;
+          item.classList.add("is-dragging");
+        });
+        item.addEventListener("dragend", () => {
+          dragSourceIndex = null;
+          item.classList.remove("is-dragging");
+        });
+        item.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          item.classList.add("is-drop-target");
+        });
+        item.addEventListener("dragleave", () => {
+          item.classList.remove("is-drop-target");
+        });
+        item.addEventListener("drop", async (event) => {
+          event.preventDefault();
+          item.classList.remove("is-drop-target");
+          const targetIndex = Number(item.dataset.index);
+          await reorderVaults(dragSourceIndex, targetIndex);
+        });
       }
 
       item.appendChild(nameSpan);
@@ -85,6 +121,7 @@ export function createVaultController({
     state.vaults = await getVaults();
     renderVaultList();
     refreshVaultDependentControls();
+    updateVaultWarning();
     setStatusMessage("Vault added.", "success");
   }
 
@@ -100,6 +137,7 @@ export function createVaultController({
     state.vaults = await getVaults();
     renderVaultList();
     refreshVaultDependentControls();
+    updateVaultWarning();
     setStatusMessage("Vault removed.", "success");
   }
 
@@ -115,7 +153,23 @@ export function createVaultController({
     state.vaults = await getVaults();
     renderVaultList();
     refreshVaultDependentControls();
+    updateVaultWarning();
     setStatusMessage("Default vault updated.", "success");
+  }
+
+  async function reorderVaults(fromIndex, toIndex) {
+    const moved = moveVaultByIndex(state.vaults, fromIndex, toIndex);
+    if (!moved.changed) {
+      return;
+    }
+
+    state.vaults = moved.vaults;
+    await saveVaults(state.vaults);
+    state.vaults = await getVaults();
+    renderVaultList();
+    refreshVaultDependentControls();
+    updateVaultWarning();
+    setStatusMessage("Vault order updated. Top vault is now default.", "success");
   }
 
   async function loadVaults() {
@@ -124,6 +178,7 @@ export function createVaultController({
       state.vaults = vaults;
       renderVaultList();
       refreshVaultDependentControls();
+      updateVaultWarning();
     } catch (error) {
       console.error("Failed to load vaults", error);
     }
@@ -133,6 +188,17 @@ export function createVaultController({
     const addBtn = elements.addVaultBtn();
     if (addBtn) {
       addBtn.addEventListener("click", addVault);
+    }
+
+    const input = elements.newVaultInput();
+    if (input) {
+      input.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") {
+          return;
+        }
+        event.preventDefault();
+        void addVault();
+      });
     }
   }
 

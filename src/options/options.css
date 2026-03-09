@@ -319,6 +319,42 @@ textarea {
   font-family: inherit;
 }
 
+.vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.vault-item {
+  padding: 10px 12px;
+  border: 1px solid #dbe1ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.vault-item.is-default {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.vault-item.is-draggable {
+  cursor: grab;
+}
+
+.vault-item.is-dragging {
+  opacity: 0.5;
+}
+
+.vault-item.is-drop-target {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.16);
+}
+
+.vault-name {
+  font-weight: 600;
+}
+
 #frontmatterTitleTemplate {
   min-height: 96px;
 }

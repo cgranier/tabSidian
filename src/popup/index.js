@@ -14,7 +14,8 @@ const elements = {
   saveStatus: () => document.getElementById("save-status"),
   saveBtn: () => document.getElementById("save-btn"),
   settingsBtn: () => document.getElementById("settings-btn"),
-  tabCount: () => document.getElementById("tab-count")
+  tabCount: () => document.getElementById("tab-count"),
+  previewToggleBtn: () => document.getElementById("preview-toggle-btn")
 };
 
 let state = {
@@ -25,6 +26,7 @@ let state = {
     filenamePattern: "Tabs - {{date}}"
   },
   currentTemplate: null,
+  previewCollapsed: false,
   manualOverrides: {
     vault: false,
     folder: false,
@@ -55,6 +57,7 @@ async function initialize() {
       selectTemplate((defaultTemplate ?? state.templates[0]).id, { resetOverrides: true });
     }
 
+    updatePreviewVisibility();
     bindEvents();
   } catch (error) {
     console.error("Failed to initialize popup", error);
@@ -175,6 +178,18 @@ function updateActionLabel() {
   saveButton.textContent = selectedVault ? "Add to Obsidian" : "Download Markdown";
 }
 
+function updatePreviewVisibility() {
+  const preview = elements.templatePreview();
+  const toggle = elements.previewToggleBtn();
+  if (!preview || !toggle) {
+    return;
+  }
+
+  preview.classList.toggle("collapsed", state.previewCollapsed);
+  toggle.textContent = state.previewCollapsed ? "Show" : "Hide";
+  toggle.setAttribute("aria-expanded", state.previewCollapsed ? "false" : "true");
+}
+
 function setSaveStatus(message, isError = false) {
   const status = elements.saveStatus();
   if (!status) {
@@ -201,6 +216,14 @@ function bindEvents() {
     state.manualOverrides.folder = true;
     updatePreview();
   });
+
+  const previewToggleBtn = elements.previewToggleBtn();
+  if (previewToggleBtn) {
+    previewToggleBtn.addEventListener("click", () => {
+      state.previewCollapsed = !state.previewCollapsed;
+      updatePreviewVisibility();
+    });
+  }
 
   elements.settingsBtn().addEventListener("click", () => {
     browser.runtime.openOptionsPage();

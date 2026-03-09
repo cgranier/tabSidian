@@ -639,7 +639,8 @@ button:disabled {
   }
 
   .nav-item {
-    width: 100%;
+    width: auto;
+    box-sizing: border-box;
     text-align: left;
   }
 

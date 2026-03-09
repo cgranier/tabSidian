@@ -105,13 +105,16 @@ body {
 }
 
 .sidebar-template-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(124, 58, 237, 0.12);
+  color: #3b0764;
+  transform: none;
 }
 
 .sidebar-template-item.active {
-  background-color: rgba(124, 58, 237, 0.14);
-  color: var(--accent-color);
+  background-color: rgba(124, 58, 237, 0.18);
+  color: #4c1d95;
   font-weight: 600;
+  transform: none;
 }
 
 /* Main Content */

@@ -4,6 +4,12 @@ import { BUILT_IN_PRESETS, DEFAULT_RESTRICTED_URLS } from "../platform/defaults.
 import { createSampleTemplateContext } from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, selectSavableTabs } from "../platform/tabFilters.js";
 import { renderTemplate } from "../platform/templateEngine.js";
+import {
+  applyResolvedTargetWithOverrides,
+  getKeyboardAction,
+  getPreviewToggleView,
+  getSaveActionLabel
+} from "./viewState.js";
 
 const elements = {
   templateSelect: () => document.getElementById("template-select"),
@@ -122,15 +128,18 @@ function selectTemplate(id, { resetOverrides = false } = {}) {
     state.saveTargetDefaults.filenamePattern
   );
 
-  if (!state.manualOverrides.filename) {
-    elements.filenameInput().value = target.filename;
-  }
-  if (!state.manualOverrides.folder) {
-    elements.folderInput().value = target.folder || "";
-  }
-  if (!state.manualOverrides.vault) {
-    elements.vaultSelect().value = target.vault || "";
-  }
+  const nextValues = applyResolvedTargetWithOverrides(
+    {
+      filename: elements.filenameInput().value,
+      folder: elements.folderInput().value,
+      vault: elements.vaultSelect().value
+    },
+    target,
+    state.manualOverrides
+  );
+  elements.filenameInput().value = nextValues.filename;
+  elements.folderInput().value = nextValues.folder;
+  elements.vaultSelect().value = nextValues.vault;
   updateActionLabel();
   updatePreview();
 }
@@ -174,8 +183,7 @@ function updateActionLabel() {
   if (!saveButton) {
     return;
   }
-  const selectedVault = elements.vaultSelect().value;
-  saveButton.textContent = selectedVault ? "Add to Obsidian" : "Download Markdown";
+  saveButton.textContent = getSaveActionLabel(elements.vaultSelect().value);
 }
 
 function updatePreviewVisibility() {
@@ -185,9 +193,10 @@ function updatePreviewVisibility() {
     return;
   }
 
-  preview.classList.toggle("collapsed", state.previewCollapsed);
-  toggle.textContent = state.previewCollapsed ? "Show" : "Hide";
-  toggle.setAttribute("aria-expanded", state.previewCollapsed ? "false" : "true");
+  const previewState = getPreviewToggleView(state.previewCollapsed);
+  preview.classList.toggle("collapsed", previewState.previewCollapsedClass);
+  toggle.textContent = previewState.buttonLabel;
+  toggle.setAttribute("aria-expanded", previewState.ariaExpanded);
 }
 
 function setSaveStatus(message, isError = false) {
@@ -268,17 +277,16 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", (event) => {
-    const isSubmitShortcut = (event.ctrlKey || event.metaKey) && event.key === "Enter";
-    if (isSubmitShortcut) {
+    const saveButton = elements.saveBtn();
+    const action = getKeyboardAction(event, Boolean(saveButton?.disabled));
+    if (action === "save") {
       event.preventDefault();
-      const saveButton = elements.saveBtn();
-      if (saveButton && !saveButton.disabled) {
+      if (saveButton) {
         saveButton.click();
       }
       return;
     }
-
-    if (event.key === "Escape") {
+    if (action === "close") {
       event.preventDefault();
       window.close();
     }

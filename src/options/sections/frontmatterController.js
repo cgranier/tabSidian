@@ -15,6 +15,15 @@ export function createFrontmatterController({
       frontmatterFieldsContainer.addEventListener("input", (event) => {
         if (event.target?.dataset?.frontmatterField) {
           updateFrontmatterState();
+          queueSave({ silent: true });
+        }
+      });
+
+      frontmatterFieldsContainer.addEventListener("change", (event) => {
+        if (event.target?.dataset?.frontmatterToggle) {
+          handleFrontmatterToggleChange(event);
+          queueSave({ silent: true });
+          updateTemplatePreview();
         }
       });
 
@@ -22,6 +31,7 @@ export function createFrontmatterController({
         if (event.target?.dataset?.frontmatterField) {
           event.target.value = defaults.sanitizeFrontmatterInput(event.target.value);
           updateFrontmatterState();
+          queueSave({ silent: true });
         }
       });
     }

@@ -26,7 +26,7 @@ export function createFrontmatterStateApi({
     if (!container) {
       return;
     }
-    renderFrontmatterFields(container, state.frontmatterFields);
+    renderFrontmatterFields(container, state.frontmatterFields, state.frontmatterEnabled);
   }
 
   function renderFrontmatterToggles() {

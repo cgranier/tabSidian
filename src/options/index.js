@@ -145,7 +145,10 @@ const elements = {
   saveTemplateBtn: () => document.getElementById("save-template-btn"),
   deleteTemplateBtn: () => document.getElementById("delete-template-btn"),
   frontmatterFieldsContainer: () => document.getElementById("frontmatter-fields-container"),
-  frontmatterTogglesContainer: () => document.getElementById("frontmatter-toggles-container")
+  frontmatterTogglesContainer: () => document.getElementById("frontmatter-toggles-container"),
+  propertiesImport: () => document.getElementById("propertiesImport"),
+  propertiesExport: () => document.getElementById("propertiesExport"),
+  propertiesImportInput: () => document.getElementById("propertiesImportInput")
 };
 
 const LEGACY_DEFAULT_RESTRICTED_URLS = [
@@ -689,6 +692,52 @@ async function persistCustomPresets() {
   await saveTemplates(state.customPresets);
 }
 
+function exportPropertiesConfig() {
+  const payload = {
+    fieldNames: state.frontmatterFields,
+    enabledFields: state.frontmatterEnabled
+  };
+
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "types.json";
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  setStatusMessage("Properties exported.", "success");
+}
+
+function applyImportedPropertiesConfig(rawData) {
+  const source =
+    rawData && typeof rawData === "object"
+      ? rawData
+      : {};
+  const rawFields =
+    source.fieldNames && typeof source.fieldNames === "object" ? source.fieldNames : source;
+  const rawEnabled =
+    source.enabledFields && typeof source.enabledFields === "object" ? source.enabledFields : {};
+
+  const normalizedFields = resolveFrontmatterFields(rawFields);
+  const normalizedEnabled = resolveFrontmatterEnabled({
+    ...state.frontmatterEnabled,
+    ...rawEnabled
+  });
+
+  state.frontmatterFields = normalizedFields;
+  state.frontmatterEnabled = normalizedEnabled;
+
+  renderFrontmatterSettings();
+  setFrontmatterInputs(normalizedFields);
+  setFrontmatterToggles(normalizedEnabled);
+  updateFrontmatterState();
+  updateTemplatePreview();
+  queueSave();
+  setStatusMessage("Properties imported.", "success");
+}
+
 function attachEvents() {
   const markdownEditor = elements.markdownFormat();
   if (markdownEditor) {
@@ -706,6 +755,38 @@ function attachEvents() {
   frontmatterController.bindEvents();
   generalController.bindEvents();
   resetController.bindEvents();
+
+  const propertiesImportBtn = elements.propertiesImport();
+  const propertiesExportBtn = elements.propertiesExport();
+  const propertiesImportInput = elements.propertiesImportInput();
+
+  if (propertiesExportBtn) {
+    propertiesExportBtn.addEventListener("click", exportPropertiesConfig);
+  }
+
+  if (propertiesImportBtn && propertiesImportInput) {
+    propertiesImportBtn.addEventListener("click", () => {
+      propertiesImportInput.click();
+    });
+
+    propertiesImportInput.addEventListener("change", async (event) => {
+      const file = event.target?.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        applyImportedPropertiesConfig(parsed);
+      } catch (error) {
+        console.error("Unable to import properties", error);
+        setStatusMessage("Invalid properties JSON file.", "error");
+      } finally {
+        propertiesImportInput.value = "";
+      }
+    });
+  }
 
   elements.restrictedUrls().addEventListener("input", () => {
     queueSave({ silent: true });

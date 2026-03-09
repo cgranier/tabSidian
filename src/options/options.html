@@ -113,25 +113,19 @@
       <section id="section-properties" class="section-panel" data-section-panel="properties">
         <h2>Properties</h2>
         <p>Customize the YAML keys generated in the export frontmatter.</p>
-        
-        <!-- Existing properties UI structure will be re-injected here or adapted -->
-        <div class="frontmatter-grid">
-          <div class="field-group">
-            <h3>Field Names</h3>
-            <p class="hint">Customize the keys used in the YAML frontmatter.</p>
-            <div id="frontmatter-fields-container">
-              <!-- Injected via JS -->
-            </div>
+        <div class="frontmatter-table-wrap">
+          <div id="frontmatter-fields-container">
+            <!-- Injected via JS -->
           </div>
-          <div class="field-group">
-            <h3>Enabled Fields</h3>
-            <p class="hint">Toggle which fields are included in the export.</p>
-            <div id="frontmatter-toggles-container">
-              <!-- Injected via JS -->
-            </div>
-          </div>
+          <div class="template-feedback frontmatter-feedback" data-frontmatter-feedback></div>
+          <div id="frontmatter-toggles-container" class="hidden"></div>
         </div>
-        
+        <input id="propertiesImportInput" type="file" accept=".json" hidden />
+        <div class="flex-row mt-4">
+          <button id="propertiesImport" class="btn-secondary">Import types.json</button>
+          <button id="propertiesExport" class="btn-secondary">Export types.json</button>
+        </div>
+
         <div class="panel-footer mt-4">
           <button id="resetProperties" class="btn-danger">Reset Properties</button>
         </div>

@@ -28,6 +28,7 @@ test("bindEvents wires field and list handlers", () => {
   let updatePreviewCalls = 0;
   const listSanitizeArgs = [];
   const queueSaveCalls = [];
+  let toggleChangeCalls = 0;
 
   const fieldsContainer = makeEventTarget();
   const togglesContainer = makeEventTarget();
@@ -52,7 +53,9 @@ test("bindEvents wires field and list handlers", () => {
     updateFrontmatterState: () => {
       updateFrontmatterStateCalls += 1;
     },
-    handleFrontmatterToggleChange: () => {},
+    handleFrontmatterToggleChange: () => {
+      toggleChangeCalls += 1;
+    },
     updateFrontmatterListsState: (arg) => {
       listSanitizeArgs.push(arg);
     },
@@ -71,13 +74,19 @@ test("bindEvents wires field and list handlers", () => {
   fieldsContainer.emit("focusout", { target: fieldTarget });
   assert.equal(updateFrontmatterStateCalls, 2);
   assert.equal(fieldTarget.value, "noteTitle");
+  assert.equal(queueSaveCalls.length, 2);
+
+  fieldsContainer.emit("change", {
+    target: { dataset: { frontmatterToggle: "title" }, checked: true }
+  });
+  assert.equal(toggleChangeCalls, 1);
 
   titleInput.value = "  custom {{title}}  ";
   titleInput.emit("input");
   titleInput.emit("blur");
   assert.equal(state.frontmatterTitleTemplate, "custom {{title}}");
-  assert.equal(updatePreviewCalls, 2);
-  assert.equal(queueSaveCalls.length, 2);
+  assert.equal(updatePreviewCalls, 3);
+  assert.equal(queueSaveCalls.length, 5);
 
   tagsInput.emit("input");
   tagsInput.emit("blur");

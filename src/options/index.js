@@ -140,8 +140,7 @@ const elements = {
   templateFolder: () => document.getElementById("template-folder"),
   templateVault: () => document.getElementById("template-vault"),
   templateContent: () => document.getElementById("template-content"),
-  sidebarTemplateList: () => document.getElementById("sidebar-template-list"),
-  templateList: () => document.getElementById("sidebar-template-items"),
+  templateList: () => document.getElementById("template-list-items"),
   createTemplateBtn: () => document.getElementById("create-template-btn"),
   saveTemplateBtn: () => document.getElementById("save-template-btn"),
   deleteTemplateBtn: () => document.getElementById("delete-template-btn"),
@@ -394,12 +393,7 @@ function initializeSectionNavigation() {
         .set({ [SECTION_STORAGE_KEY]: target })
         .catch((error) => console.error("Unable to persist active section", error));
     },
-    onSectionChange: (target) => {
-      const sidebarList = elements.sidebarTemplateList();
-      if (sidebarList) {
-        sidebarList.classList.toggle("hidden", target !== "templates");
-      }
-    }
+    onSectionChange: (target) => target
   });
 }
 

@@ -5,8 +5,9 @@ export function renderTemplateSidebarItems(container, presets, selectedId, onSel
 
   container.innerHTML = "";
   presets.forEach((preset) => {
-    const item = document.createElement("div");
-    item.className = "nav-item";
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "template-list-item";
     if (preset.id === selectedId) {
       item.classList.add("active");
     }
@@ -50,4 +51,3 @@ export function applyTemplateToEditorForm(
   }
   if (contentInput) contentInput.value = preset.template;
 }
-

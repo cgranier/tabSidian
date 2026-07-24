@@ -15,6 +15,9 @@ pnpm-lock.yaml
 .idea/
 .DS_Store
 
+# Windows NTFS alternate-data-stream sidecars (Mark of the Web)
+*:Zone.Identifier
+
 # Logs and coverage
 *.log
 npm-debug.log*

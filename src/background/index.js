@@ -161,9 +161,12 @@ function canInvokeObsidian() {
   }
 }
 
-async function getActiveTab() {
+async function getActiveTab(windowId) {
   try {
-    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    const query = typeof windowId === "number" && windowId >= 0
+      ? { active: true, windowId }
+      : { active: true, currentWindow: true };
+    const [activeTab] = await browser.tabs.query(query);
     return activeTab;
   } catch (error) {
     console.warn("tabSidian could not resolve the active tab", error);
@@ -627,19 +630,14 @@ async function resolveUserPreferences(overrides = {}) {
   };
 }
 
-async function getActiveWindowTabs() {
-  const windows = await browser.windows.getAll({ populate: true, windowTypes: ["normal"] });
-  if (!windows || windows.length === 0) {
-    return { window: null, tabs: [], tabGroups: {} };
-  }
-  const focused = windows.find((windowItem) => windowItem.focused) ?? windows[0];
+async function describeWindow(windowItem) {
   const windowMeta = {
-    id: typeof focused.id === "number" ? focused.id : null,
-    title: typeof focused.title === "string" ? focused.title : "",
-    focused: Boolean(focused.focused),
-    incognito: Boolean(focused.incognito)
+    id: typeof windowItem.id === "number" ? windowItem.id : null,
+    title: typeof windowItem.title === "string" ? windowItem.title : "",
+    focused: Boolean(windowItem.focused),
+    incognito: Boolean(windowItem.incognito)
   };
-  const tabs = focused.tabs ?? [];
+  const tabs = windowItem.tabs ?? [];
   const groupIds = [...new Set(tabs.map((tab) => (typeof tab.groupId === "number" ? tab.groupId : -1)).filter((id) => id >= 0))];
   let tabGroups = {};
   if (groupIds.length > 0 && browser?.tabGroups?.get) {
@@ -657,11 +655,35 @@ async function getActiveWindowTabs() {
   };
 }
 
+// The popup passes its own windowId because the background worker cannot
+// rely on window focus: while the popup is open, Chromium/Edge can report
+// no normal window as focused, which previously made the export fall back
+// to windows[0] (always the oldest window).
+async function getActiveWindowTabs(windowId) {
+  if (typeof windowId === "number" && windowId >= 0) {
+    try {
+      const requested = await browser.windows.get(windowId, { populate: true });
+      if (requested) {
+        return describeWindow(requested);
+      }
+    } catch (error) {
+      console.warn("tabSidian could not resolve the requested window, falling back to focused window", error);
+    }
+  }
+
+  const windows = await browser.windows.getAll({ populate: true, windowTypes: ["normal"] });
+  if (!windows || windows.length === 0) {
+    return { window: null, tabs: [], tabGroups: {} };
+  }
+  const focused = windows.find((windowItem) => windowItem.focused) ?? windows[0];
+  return describeWindow(focused);
+}
+
 function selectTabs(tabs, restrictedUrls) {
   return selectSavableTabs(tabs, restrictedUrls);
 }
 
-async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian }) {
+async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian, windowId }) {
   if (!obsidian?.enabled) {
     return { attempted: false, success: false };
   }
@@ -671,7 +693,7 @@ async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsid
     return { attempted: false, success: false };
   }
 
-  const activeTab = await getActiveTab();
+  const activeTab = await getActiveTab(windowId);
   const clipboardResult = await copyMarkdownToClipboard(markdown, activeTab);
   const restrictedActiveTab = clipboardResult.restrictedActiveTab === true;
 
@@ -793,7 +815,7 @@ async function processExport(overrides = {}) {
     obsidian
   } = await resolveUserPreferences(overrides);
 
-  const { window: activeWindow, tabs, tabGroups } = await getActiveWindowTabs();
+  const { window: activeWindow, tabs, tabGroups } = await getActiveWindowTabs(overrides.windowId);
   const tabsToProcess = selectTabs(tabs, restrictedUrls);
 
   if (tabsToProcess.length === 0) {
@@ -820,7 +842,7 @@ async function processExport(overrides = {}) {
   });
   const filename = obsidian?.notePath || `${formattedTimestamp}_OpenTabs.md`;
 
-  const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian });
+  const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian, windowId: overrides.windowId });
   if (obsidianResult.success) {
     return;
   }

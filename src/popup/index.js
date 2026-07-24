@@ -251,13 +251,15 @@ function bindEvents() {
     const folder = elements.folderInput().value;
 
     try {
+      const currentWindow = await browser.windows.getCurrent();
       const response = await browser.runtime.sendMessage({
         type: "SAVE_TABS",
         payload: {
           templateId,
           vaultName,
           filename,
-          folder
+          folder,
+          windowId: typeof currentWindow?.id === "number" ? currentWindow.id : undefined
         }
       });
 

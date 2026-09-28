@@ -38,6 +38,8 @@ This would save your tabs to your tabSidian folder inside your MyNotes vault. Ea
 1. Click the tabSidian toolbar button while the window you want to capture is focused.
 2. tabSidian collects every tab in the current window (filtered by your restrictions) and renders them into Markdown using your active template.
 3. Obsidian will open with your Markdown file selected.
+   - Most exports are sent to Obsidian directly inside the link. Very large exports (roughly more than 18,000 characters on Chrome/Edge, 60,000 on Firefox) are copied to your clipboard by the extension itself and Obsidian imports them from there. If the clipboard is unavailable, tabSidian offers a Markdown download instead of creating an empty or incorrect note.
+   - If Obsidian can’t be opened, or the template produces an empty note, the popup tells you why.
 4. Depending on your browser or if you haven't setup the **Obsidian vault name**:
    - Chrome/Edge/Firefox will prompt you to download the Markdown file or copy it to your clipboard.
    - Safari opens the Share Sheet; you can send the Markdown to Obsidian or copy/download it from the fallback buttons.
@@ -46,7 +48,7 @@ This would save your tabs to your tabSidian folder inside your MyNotes vault. Ea
 
 If you do not add a Vault name to your options, or don't have Obsidian installed, you can still save the markdown file to any folder in your system. In these cases, tabSidian will open a file download dialog so that you can select where to save the file.
 
-A copy of the file contents will also be placed on the system clipboard and you can immediately paste it anywhere you want.
+The downloaded file is plain Markdown, so you can open it or paste its contents anywhere you want.
 
 ---
 
@@ -137,5 +139,5 @@ Last visited: unknown
 
 - tabSidian runs entirely in the browser. No browsing data or generated Markdown leaves your device.
 - Permissions (tabs, clipboard, notifications, tab groups) are only used after you click the toolbar button.
-- Clipboard access is required solely for the “copy Markdown” feature; nothing is captured unless you request it.
+- Clipboard access is used only to hand very large exports to Obsidian and for the Safari “copy Markdown” button. tabSidian writes to the clipboard from the extension itself, never from the web page you are viewing, and never reads it.
 - tabSidian saves content locally to your Obsidian vault or to a folder of your choice. Your data is not collected, and we do not gather any usage metrics. The code is [open source](https://github.com/cgranier/tabSidian) and auditable.

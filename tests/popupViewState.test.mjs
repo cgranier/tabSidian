@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   applyResolvedTargetWithOverrides,
   getKeyboardAction,
+  getObsidianFallbackMessage,
+  getPrepareFailureMessage,
   getPreviewToggleView,
   getSaveActionLabel
 } from "../src/popup/viewState.js";
@@ -57,4 +59,18 @@ test("getKeyboardAction handles save and close shortcuts", () => {
   assert.equal(getKeyboardAction({ key: "Enter", ctrlKey: true, metaKey: false }, true), null);
   assert.equal(getKeyboardAction({ key: "Escape", ctrlKey: false, metaKey: false }), "close");
   assert.equal(getKeyboardAction({ key: "x", ctrlKey: false, metaKey: false }), null);
+});
+
+test("getPrepareFailureMessage explains why an export cannot start", () => {
+  assert.equal(getPrepareFailureMessage({ ok: true, status: "ready", markdown: "x" }), "");
+  assert.match(getPrepareFailureMessage({ ok: false, error: "boom" }), /boom/);
+  assert.match(getPrepareFailureMessage({ ok: true, status: "no_tabs" }), /no savable tabs/);
+  assert.match(getPrepareFailureMessage({ ok: true, status: "no_tabs", restrictedActiveTab: true }), /system pages/);
+  assert.match(getPrepareFailureMessage({ ok: true, status: "invalid" }), /empty note/);
+  assert.notEqual(getPrepareFailureMessage(undefined), "");
+});
+
+test("getObsidianFallbackMessage distinguishes clipboard and launch failures", () => {
+  assert.match(getObsidianFallbackMessage({ reason: "clipboard_unavailable" }), /clipboard was unavailable/);
+  assert.match(getObsidianFallbackMessage({ reason: "tab_update_suppressed" }), /Couldn’t open Obsidian/);
 });

@@ -4,9 +4,13 @@ import { BUILT_IN_PRESETS, DEFAULT_RESTRICTED_URLS } from "../platform/defaults.
 import { createSampleTemplateContext } from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, selectSavableTabs } from "../platform/tabFilters.js";
 import { renderTemplate } from "../platform/templateEngine.js";
+import { getActiveTab, launchObsidianUri } from "../platform/obsidianLaunch.js";
+import { sendExportToObsidian, writeClipboardText } from "../platform/obsidianExport.js";
 import {
   applyResolvedTargetWithOverrides,
   getKeyboardAction,
+  getObsidianFallbackMessage,
+  getPrepareFailureMessage,
   getPreviewToggleView,
   getSaveActionLabel
 } from "./viewState.js";
@@ -199,6 +203,11 @@ function updatePreviewVisibility() {
   toggle.setAttribute("aria-expanded", previewState.ariaExpanded);
 }
 
+async function requestBackgroundNewTabLaunch(url) {
+  const response = await browser.runtime.sendMessage({ type: "LAUNCH_OBSIDIAN_NEW_TAB", payload: { url } });
+  return response && typeof response === "object" ? response : { success: false, reason: "no_response" };
+}
+
 function setSaveStatus(message, isError = false) {
   const status = elements.saveStatus();
   if (!status) {
@@ -250,9 +259,14 @@ function bindEvents() {
     const filename = elements.filenameInput().value;
     const folder = elements.folderInput().value;
 
+    const restoreButton = () => {
+      saveButton.disabled = false;
+      saveButton.textContent = originalLabel;
+    };
+
     try {
-      const response = await browser.runtime.sendMessage({
-        type: "SAVE_TABS",
+      const prepared = await browser.runtime.sendMessage({
+        type: "PREPARE_EXPORT",
         payload: {
           templateId,
           vaultName,
@@ -261,18 +275,56 @@ function bindEvents() {
         }
       });
 
-      if (response && response.ok === false) {
-        setSaveStatus(response.error || "Unable to save tabs. Check extension logs.", true);
-        saveButton.disabled = false;
-        saveButton.textContent = originalLabel;
+      const failure = getPrepareFailureMessage(prepared);
+      if (failure) {
+        setSaveStatus(failure, true);
+        restoreButton();
+        return;
+      }
+
+      let fallbackMessage = "";
+      if (prepared.obsidian) {
+        // Runs in the popup so the clipboard write happens in extension context and the
+        // protocol launch stays tied to the user's click.
+        const activeTab = await getActiveTab();
+        const result = await sendExportToObsidian({
+          markdown: prepared.markdown,
+          plan: prepared.obsidian,
+          launch: (url) => launchObsidianUri(url, { activeTab, openNewTab: requestBackgroundNewTabLaunch }),
+          writeClipboard: writeClipboardText
+        });
+        if (result.success) {
+          window.close();
+          return;
+        }
+        fallbackMessage = getObsidianFallbackMessage(result);
+        setSaveStatus(fallbackMessage, true);
+      }
+
+      const download = await browser.runtime.sendMessage({
+        type: "DELIVER_DOWNLOAD",
+        payload: {
+          markdown: prepared.markdown,
+          filename: prepared.filename
+        }
+      });
+
+      if (download && download.ok === false) {
+        setSaveStatus(download.error || "Unable to save tabs. Check extension logs.", true);
+        restoreButton();
+        return;
+      }
+
+      if (fallbackMessage) {
+        // Keep the popup open so the user can see why the note went to a download instead.
+        restoreButton();
         return;
       }
 
       window.close();
     } catch (error) {
       setSaveStatus(error?.message || "Unable to save tabs. Check extension logs.", true);
-      saveButton.disabled = false;
-      saveButton.textContent = originalLabel;
+      restoreButton();
     }
   });
 

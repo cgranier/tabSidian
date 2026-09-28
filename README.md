@@ -149,6 +149,7 @@ Follow the steps below after running the relevant `npm run build:<browser>` comm
 
 - Only the currently focused window is exported; repeat the action for other windows.
 - Multiple highlighted tabs export only the selection.
+- Exports are sent to Obsidian inside the `obsidian://new` link when they fit (~18k characters on Chromium, ~60k on Firefox). Larger exports are written to the clipboard from the extension (never via the active page) and imported with `clipboard=true`; if that fails, a Markdown download is offered instead.
 - Safari share integration stores temporary payloads in `browser.storage.local` until the share flow completes.
 - Permissions remain minimal (`tabs`, `storage`, `tabGroups`, `downloads` (Chromium/Firefox)), with the downloads permission optional on Safari builds.
 

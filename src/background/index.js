@@ -17,8 +17,12 @@ import {
   resolveFrontmatterEnabled
 } from "../platform/markdown.js";
 import { sanitizeRestrictedUrls, shouldProcessTab, isRestrictedUrl, selectSavableTabs } from "../platform/tabFilters.js";
-import { IS_FIREFOX, IS_CHROMIUM } from "../platform/runtime.js";
-import { buildObsidianUrl, OBSIDIAN_NEW_SCHEME } from "../platform/obsidian.js";
+import { IS_FIREFOX } from "../platform/runtime.js";
+import { OBSIDIAN_NEW_SCHEME, planObsidianExport, resolveMaxObsidianUriLength } from "../platform/obsidian.js";
+import { getActiveTab, launchObsidianUri, openObsidianInNewTab } from "../platform/obsidianLaunch.js";
+import { sendExportToObsidian, writeClipboardText } from "../platform/obsidianExport.js";
+import { validateExport } from "../platform/exportValidator.js";
+import { emitMetric } from "../platform/metrics.js";
 import { applyPathTemplate } from "../platform/pathTemplate.js";
 import { setupMigration } from "./migration.js";
 import {
@@ -32,9 +36,7 @@ import {
 
 setupMigration();
 const NOTIFICATION_ICON = "icon128.png";
-// Windows and macOS custom protocol handlers begin rejecting requests above ~20k characters.
-// Firefox tolerates larger URIs, so it keeps the previous ~60k ceiling; Chromium-based builds use ~18k.
-const MAX_OBSIDIAN_URI_LENGTH = IS_FIREFOX ? 60000 : 18000;
+const MAX_OBSIDIAN_URI_LENGTH = resolveMaxObsidianUriLength({ isFirefox: IS_FIREFOX });
 
 function sanitizeText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -42,7 +44,6 @@ function sanitizeText(value) {
 
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 const VALID_SEGMENT_SEPARATOR = "/";
-const NAVIGATION_VERIFICATION_DELAY_MS = 200;
 
 function detectPlatform() {
   const uaData = (typeof navigator !== "undefined" && navigator.userAgentData) || null;
@@ -144,346 +145,6 @@ function sanitizeFormatSetting(value, fallback) {
     }
   }
   return fallback;
-}
-
-function canInvokeObsidian() {
-  if (!browser?.tabs?.update) {
-    return false;
-  }
-
-  try {
-    // eslint-disable-next-line no-new
-    new URL(OBSIDIAN_NEW_SCHEME);
-    return true;
-  } catch (error) {
-    console.warn("tabSidian cannot construct an Obsidian URI", error);
-    return false;
-  }
-}
-
-async function getActiveTab() {
-  try {
-    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-    return activeTab;
-  } catch (error) {
-    console.warn("tabSidian could not resolve the active tab", error);
-    return undefined;
-  }
-}
-
-function isBlankUrl(url) {
-  if (typeof url !== "string") {
-    return true;
-  }
-
-  const trimmed = url.trim();
-  return trimmed.length === 0 || trimmed === "about:blank";
-}
-
-// Chromium-based browsers (notably Vivaldi) will resolve `tabs.update`
-// even when they refuse to hand the custom protocol to the OS. In that
-// situation the tab reports the requested URL in `pendingUrl`, keeps its
-// visible `url` blank/about:blank, and sits forever in the "loading"
-// state. Detect that pattern so we can fall back to the new-tab transport.
-function isSuppressedNavigation(tabInfo, targetUrl) {
-  if (!tabInfo || typeof targetUrl !== "string") {
-    return false;
-  }
-
-  const pendingUrl = typeof tabInfo.pendingUrl === "string" ? tabInfo.pendingUrl : "";
-  const currentUrl = typeof tabInfo.url === "string" ? tabInfo.url : "";
-
-  if (pendingUrl !== targetUrl) {
-    return false;
-  }
-
-  if (!isBlankUrl(currentUrl)) {
-    return false;
-  }
-
-  if (typeof tabInfo.status === "string" && tabInfo.status !== "loading") {
-    return false;
-  }
-
-  return true;
-}
-
-async function verifyNavigationSucceeded(tabId, targetUrl) {
-  if (!browser?.tabs?.get) {
-    return true;
-  }
-
-  try {
-    const refreshed = await browser.tabs.get(tabId);
-    return !isSuppressedNavigation(refreshed, targetUrl);
-  } catch (error) {
-    console.warn("tabSidian could not verify Obsidian navigation state", error);
-    return false;
-  }
-}
-
-async function updateActiveTab(url, activeTab) {
-  try {
-    if (!activeTab?.id) {
-      return { success: false, reason: "no_active_tab" };
-    }
-
-    const updatedTab = await browser.tabs.update(activeTab.id, { url });
-
-    if (isSuppressedNavigation(updatedTab, url)) {
-      await new Promise((resolve) => setTimeout(resolve, NAVIGATION_VERIFICATION_DELAY_MS));
-      const verified = await verifyNavigationSucceeded(activeTab.id, url);
-      if (!verified) {
-        emitMetric("obsidian_export_navigation_blocked", { reason: "tab_update_suppressed" });
-        return { success: false, reason: "tab_update_suppressed" };
-      }
-    }
-
-    emitMetric("obsidian_export_navigation", { transport: "tab_update" });
-    return { success: true, transport: "tab_update" };
-  } catch (error) {
-    console.error("tabSidian failed to route Obsidian URI through active tab", error);
-    emitMetric("obsidian_export_navigation_failed", { reason: error?.message ?? "update_failed" });
-    return { success: false, reason: error?.message ?? "update_failed" };
-  }
-}
-
-async function navigateObsidianProtocol(url) {
-  if (!browser?.tabs?.create) {
-    return { success: false, reason: "no_tabs_api" };
-  }
-
-  try {
-    const createdTab = await browser.tabs.create({
-      url,
-      active: true
-    });
-
-    if (createdTab?.id) {
-      setTimeout(() => {
-        browser.tabs
-          .remove(createdTab.id)
-          .catch(() => {
-            // tab may already be gone; ignore cleanup failures
-          });
-      }, 750);
-    }
-
-    emitMetric("obsidian_export_navigation", { transport: "new_tab" });
-    return { success: true, transport: "new_tab" };
-  } catch (error) {
-    console.error("tabSidian failed to invoke Obsidian via navigation", error);
-    emitMetric("obsidian_export_navigation_failed", { reason: error?.message ?? "unknown" });
-    return { success: false, reason: error?.message ?? "navigation_failed" };
-  }
-}
-
-function clipboardInjectionExecutor(text, preferNavigator = true) {
-  function execCommandCopy() {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      textarea.style.left = "-9999px";
-
-      document.body.appendChild(textarea);
-      const selection = window.getSelection();
-      const previousRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-
-      textarea.focus();
-      textarea.select();
-
-      const successful = document.execCommand("copy");
-
-      textarea.remove();
-      if (previousRange && selection) {
-        selection.removeAllRanges();
-        selection.addRange(previousRange);
-      }
-
-      if (successful) {
-        return { success: true, method: "execCommand" };
-      }
-
-      return { success: false, method: "execCommand_failed" };
-    } catch (error) {
-      return { success: false, method: "execCommand_error", message: error?.message ?? String(error) };
-    }
-  }
-
-  if (preferNavigator && navigator?.clipboard?.writeText) {
-    return navigator.clipboard
-      .writeText(text)
-      .then(() => ({ success: true, method: "navigator" }))
-      .catch((error) => {
-        const fallback = execCommandCopy();
-        if (!fallback.success && !fallback.message) {
-          fallback.message = error?.message ?? String(error);
-        }
-        return fallback;
-      });
-  }
-
-  return execCommandCopy();
-}
-
-const RESTRICTED_CLIPBOARD_PREFIXES = [
-  "chrome://",
-  "edge://",
-  "about:",
-  "chrome-extension://",
-  "moz-extension://",
-  "edge-extension://",
-  "safari-web-extension://",
-  "extension://"
-];
-
-function isRestrictedClipboardUrl(url) {
-  if (typeof url !== "string" || url.length === 0) {
-    return false;
-  }
-
-  return RESTRICTED_CLIPBOARD_PREFIXES.some((prefix) => url.startsWith(prefix));
-}
-
-async function writeClipboardFromExtension(text) {
-  if (!navigator?.clipboard?.writeText) {
-    return { success: false, reason: "background_clipboard_unavailable" };
-  }
-
-  try {
-    await navigator.clipboard.writeText(text);
-    return { success: true, method: "background_clipboard" };
-  } catch (error) {
-    console.error("tabSidian background clipboard write failed", error);
-    return {
-      success: false,
-      reason: "background_clipboard_failed",
-      message: error?.message ?? String(error)
-    };
-  }
-}
-
-async function copyMarkdownToClipboard(markdown, activeTab) {
-  if (!activeTab?.id) {
-    return { success: false, reason: "no_active_tab" };
-  }
-
-  const activeTabRestricted = isRestrictedClipboardUrl(activeTab.url);
-  if (activeTabRestricted) {
-    const backgroundResult = await writeClipboardFromExtension(markdown);
-    if (backgroundResult.success) {
-      return { ...backgroundResult, restrictedActiveTab: true };
-    }
-    emitMetric("obsidian_clipboard_copy_skipped", {
-      reason: "restricted_url",
-      fallback: backgroundResult.reason
-    });
-    return { ...backgroundResult, restrictedActiveTab: true };
-  }
-
-  const preferNavigatorClipboard = !IS_CHROMIUM;
-
-  async function attemptInjection(useNavigator) {
-    const [result] = await browser.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      func: clipboardInjectionExecutor,
-      args: [markdown, useNavigator]
-    });
-    return result?.result ?? result;
-  }
-
-  if (browser?.scripting?.executeScript) {
-    try {
-      let payload = await attemptInjection(preferNavigatorClipboard);
-      if (!payload?.success) {
-        if (preferNavigatorClipboard) {
-          const retryPayload = await attemptInjection(false);
-          if (retryPayload?.success) {
-            return retryPayload;
-          }
-          payload = retryPayload ?? payload;
-        }
-
-        const backgroundResult = await writeClipboardFromExtension(markdown);
-        if (backgroundResult.success) {
-          return backgroundResult;
-        }
-
-        if (!preferNavigatorClipboard) {
-          payload = await attemptInjection(true);
-        }
-      }
-      if (payload?.success) {
-        return { success: true, method: payload.method ?? "unknown" };
-      }
-
-      return {
-        success: false,
-        reason: payload?.method ?? "copy_failed",
-        message: payload?.message
-      };
-    } catch (error) {
-      console.error("tabSidian clipboard injection failed", error);
-      return { success: false, reason: "scripting_failed", message: error?.message ?? String(error) };
-    }
-  }
-
-  if (browser?.tabs?.executeScript) {
-    try {
-      async function legacyAttempt(useNavigator) {
-        const injection = `(${clipboardInjectionExecutor.toString()})(${JSON.stringify(markdown)}, ${useNavigator});`;
-        const results = await browser.tabs.executeScript(activeTab.id, { code: injection });
-        return Array.isArray(results) ? results[0] : results;
-      }
-
-      let payload = await legacyAttempt(preferNavigatorClipboard);
-      if (!payload?.success) {
-        if (preferNavigatorClipboard) {
-          const retryPayload = await legacyAttempt(false);
-          if (retryPayload?.success) {
-            return retryPayload;
-          }
-          payload = retryPayload ?? payload;
-        }
-
-        const backgroundResult = await writeClipboardFromExtension(markdown);
-        if (backgroundResult.success) {
-          return backgroundResult;
-        }
-
-        if (!preferNavigatorClipboard) {
-          payload = await legacyAttempt(true);
-        }
-      }
-
-      if (payload?.success) {
-        return { success: true, method: payload.method ?? "unknown" };
-      }
-
-      return {
-        success: false,
-        reason: payload?.method ?? "copy_failed",
-        message: payload?.message
-      };
-    } catch (error) {
-      console.error("tabSidian legacy clipboard injection failed", error);
-      return { success: false, reason: "legacy_injection_failed", message: error?.message ?? String(error) };
-    }
-  }
-
-  return { success: false, reason: "unsupported" };
-}
-
-function emitMetric(event, detail = {}) {
-  try {
-    const payload = JSON.stringify({ event, ...detail });
-    console.info("tabSidian.metric", payload);
-  } catch (error) {
-    console.info("tabSidian.metric", event, detail);
-  }
 }
 
 async function notifyUser(title, message) {
@@ -661,126 +322,9 @@ function selectTabs(tabs, restrictedUrls) {
   return selectSavableTabs(tabs, restrictedUrls);
 }
 
-async function exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian }) {
-  if (!obsidian?.enabled) {
-    return { attempted: false, success: false };
-  }
-
-  if (!canInvokeObsidian()) {
-    emitMetric("obsidian_export_skipped", { reason: "unsupported" });
-    return { attempted: false, success: false };
-  }
-
-  const activeTab = await getActiveTab();
-  const clipboardResult = await copyMarkdownToClipboard(markdown, activeTab);
-  const restrictedActiveTab = clipboardResult.restrictedActiveTab === true;
-
-  emitMetric("obsidian_clipboard_copy", {
-    status: clipboardResult.success ? "success" : "failed",
-    reason: clipboardResult.success ? undefined : clipboardResult.reason
-  });
-
-  const resolvedNotePath = applyNotePathTemplate(obsidian.notePath, formattedTimestamp, timestamp);
-  const baseParams = {
-    vault: obsidian.vault,
-    filepath: resolvedNotePath,
-    overwrite: true
-  };
-
-  if (restrictedActiveTab) {
-    await notifyUser("tabSidian can’t run on this page", "Browser system or extension pages (edge://, chrome://, moz-extension://, etc.) don’t allow Obsidian exports. Switch back to an http or https tab and try again.");
-    return { attempted: true, success: false, reason: "restricted_active_tab" };
-  }
-
-  let urlInfo;
-  if (clipboardResult.success) {
-    const combinedUrl = buildObsidianUrl({
-      ...baseParams,
-      clipboard: true,
-      content: markdown
-    });
-
-    if (combinedUrl.totalLength <= MAX_OBSIDIAN_URI_LENGTH) {
-      urlInfo = combinedUrl;
-    } else {
-      emitMetric("obsidian_export_content_omitted", {
-        reason: "uri_too_long",
-        length: combinedUrl.totalLength,
-        threshold: MAX_OBSIDIAN_URI_LENGTH,
-        notePath: resolvedNotePath
-      });
-      await notifyUser(
-        "tabSidian export trimmed for Obsidian",
-        "The tab list was copied to your clipboard and the note was created via Obsidian’s clipboard import. If the new note opens empty, paste (Ctrl+V) to insert the captured tabs."
-      );
-
-      urlInfo = buildObsidianUrl({
-        ...baseParams,
-        clipboard: true
-      });
-    }
-  } else {
-    urlInfo = buildObsidianUrl({
-      ...baseParams,
-      content: markdown
-    });
-  }
-
-  if (!restrictedActiveTab && !clipboardResult.success && urlInfo.totalLength > MAX_OBSIDIAN_URI_LENGTH) {
-    emitMetric("obsidian_export_skipped", {
-      reason: "url_too_long",
-      length: urlInfo.totalLength,
-      notePath: resolvedNotePath
-    });
-    return { attempted: true, success: false, reason: "url_too_long" };
-  }
-
-  let updateResult = { success: false, reason: restrictedActiveTab ? "restricted_active_tab" : undefined };
-  if (!restrictedActiveTab) {
-    updateResult = await updateActiveTab(urlInfo.url, activeTab);
-    if (updateResult.success) {
-      emitMetric("obsidian_export_success", {
-        notePath: resolvedNotePath,
-        transport: updateResult.transport ?? "tab_update"
-      });
-      return { attempted: true, success: true, transport: updateResult.transport ?? "tab_update" };
-    }
-  }
-
-  const navigationResult = await navigateObsidianProtocol(urlInfo.url);
-  if (navigationResult.success) {
-    emitMetric("obsidian_export_success", {
-      notePath: resolvedNotePath,
-      transport: navigationResult.transport ?? "new_tab"
-    });
-    return { attempted: true, success: true, transport: navigationResult.transport ?? "new_tab" };
-  }
-
-  emitMetric("obsidian_export_failed", {
-    reason: navigationResult.reason ?? updateResult.reason ?? "navigation_failed",
-    notePath: resolvedNotePath
-  });
-  console.error("tabSidian Obsidian navigation failed", navigationResult.reason ?? updateResult.reason);
-
-  if (restrictedActiveTab) {
-    await notifyUser("tabSidian export blocked", "Browser system or extension pages (like edge://extensions) do not allow launching Obsidian. Switch back to a regular webpage and try again.");
-    return { attempted: true, success: false, reason: "restricted_active_tab" };
-  }
-
-  const detailMessage =
-    navigationResult.reason === "no_tabs_api" || updateResult.reason === "no_tabs_api"
-      ? "This browser disallowed opening Obsidian via the Advanced URI handler. A Markdown download will be offered instead."
-      : "tabSidian could not open Obsidian via the Advanced URI handler. A Markdown download will be offered instead.";
-
-  await notifyUser("tabSidian export issue", detailMessage);
-  return {
-    attempted: true,
-    success: false,
-    reason: navigationResult.reason ?? updateResult.reason ?? "navigation_failed"
-  };
-}
-
-async function processExport(overrides = {}) {
+// Renders the export and decides how it will reach Obsidian, without side effects.
+// The popup uses this so it can perform the clipboard write and URI launch itself.
+async function prepareExport(overrides = {}) {
   const {
     restrictedUrls,
     markdownFormat,
@@ -799,13 +343,10 @@ async function processExport(overrides = {}) {
   if (tabsToProcess.length === 0) {
     const activeTab = tabs.find((tab) => tab.active);
     const activeUrl = typeof activeTab?.url === "string" ? activeTab.url : "";
-    if (activeUrl && isRestrictedUrl(activeUrl, restrictedUrls)) {
-      await notifyUser(
-        "tabSidian can’t run on this page",
-        "Browser system or extension pages don’t allow tab capture. Switch back to any website tab and try again."
-      );
-    }
-    return;
+    return {
+      status: "no_tabs",
+      restrictedActiveTab: Boolean(activeUrl && isRestrictedUrl(activeUrl, restrictedUrls))
+    };
   }
 
   const { markdown, formattedTimestamp, timestamp } = formatTabsMarkdown(tabsToProcess, markdownFormat, {
@@ -818,17 +359,104 @@ async function processExport(overrides = {}) {
     frontmatterCollectionTemplates,
     timestampFormats
   });
+
+  const validation = validateExport({ markdown, tabs: tabsToProcess });
+  if (!validation.ok) {
+    emitMetric("export_validation_failed", { reason: validation.reason, tabCount: tabsToProcess.length });
+    return { status: "invalid", reason: validation.reason };
+  }
+  if (validation.missingUrls.length > 0) {
+    emitMetric("export_validation_partial_coverage", {
+      missing: validation.missingUrls.length,
+      coverage: validation.coverage
+    });
+  }
+
   const filename = obsidian?.notePath || `${formattedTimestamp}_OpenTabs.md`;
 
-  const obsidianResult = await exportToObsidian({ markdown, formattedTimestamp, timestamp, obsidian });
-  if (obsidianResult.success) {
-    return;
-  }
-  if (obsidianResult.reason === "restricted_active_tab") {
-    return;
+  let obsidianPlan = null;
+  if (obsidian?.enabled) {
+    const notePath = applyNotePathTemplate(obsidian.notePath, formattedTimestamp, timestamp);
+    obsidianPlan = {
+      notePath,
+      ...planObsidianExport({
+        vault: obsidian.vault,
+        filepath: notePath,
+        markdown,
+        maxLength: MAX_OBSIDIAN_URI_LENGTH
+      })
+    };
+    if (obsidianPlan.mode === "clipboard") {
+      emitMetric("obsidian_export_clipboard_mode", {
+        inlineLength: obsidianPlan.inlineLength,
+        threshold: obsidianPlan.maxLength,
+        notePath
+      });
+    }
   }
 
-  await deliverMarkdownFile({ markdown, filename });
+  return {
+    status: "ready",
+    markdown,
+    filename,
+    tabCount: tabsToProcess.length,
+    obsidian: obsidianPlan
+  };
+}
+
+async function notifyNoTabs(prepared) {
+  if (prepared.restrictedActiveTab) {
+    await notifyUser(
+      "tabSidian can’t run on this page",
+      "Browser system or extension pages don’t allow tab capture. Switch back to any website tab and try again."
+    );
+  }
+}
+
+async function notifyInvalidExport() {
+  await notifyUser(
+    "tabSidian export aborted",
+    "The selected template produced an empty note, so nothing was sent. Check the template in tabSidian settings."
+  );
+}
+
+async function notifyObsidianFailure(result) {
+  const message =
+    result.reason === "clipboard_unavailable" || result.reason === "clipboard_write_failed"
+      ? "The tab list is too long to send to Obsidian directly and the clipboard was unavailable. A Markdown download will be offered instead."
+      : "tabSidian could not open Obsidian. A Markdown download will be offered instead.";
+  await notifyUser("tabSidian export issue", message);
+}
+
+// Background-only export path (toolbar click without popup, or the legacy SAVE_TABS message).
+async function processExport(overrides = {}) {
+  const prepared = await prepareExport(overrides);
+
+  if (prepared.status === "no_tabs") {
+    await notifyNoTabs(prepared);
+    return prepared;
+  }
+  if (prepared.status === "invalid") {
+    await notifyInvalidExport();
+    return prepared;
+  }
+
+  if (prepared.obsidian) {
+    const activeTab = await getActiveTab();
+    const result = await sendExportToObsidian({
+      markdown: prepared.markdown,
+      plan: prepared.obsidian,
+      launch: (url) => launchObsidianUri(url, { activeTab }),
+      writeClipboard: writeClipboardText
+    });
+    if (result.success) {
+      return { status: "sent", mode: result.mode };
+    }
+    await notifyObsidianFailure(result);
+  }
+
+  await deliverMarkdownFile({ markdown: prepared.markdown, filename: prepared.filename });
+  return { status: "downloaded" };
 }
 
 const actionApi = browser.action ?? browser.browserAction;
@@ -843,17 +471,42 @@ if (actionApi?.onClicked?.addListener) {
   console.error("tabSidian could not bind the browser action click handler.");
 }
 
+function handleMessage(message) {
+  switch (message?.type) {
+    case "SAVE_TABS":
+      return processExport(message.payload).then(() => ({ ok: true }));
+    case "PREPARE_EXPORT":
+      return prepareExport(message.payload).then((prepared) => ({ ok: true, ...prepared }));
+    case "DELIVER_DOWNLOAD": {
+      const markdown = message.payload?.markdown;
+      const filename = message.payload?.filename;
+      if (typeof markdown !== "string" || markdown.trim().length === 0 || typeof filename !== "string") {
+        return Promise.resolve({ ok: false, error: "Nothing to download." });
+      }
+      return deliverMarkdownFile({ markdown, filename }).then(() => ({ ok: true }));
+    }
+    case "LAUNCH_OBSIDIAN_NEW_TAB": {
+      const url = message.payload?.url;
+      if (typeof url !== "string" || !url.startsWith(`${OBSIDIAN_NEW_SCHEME}?`)) {
+        return Promise.resolve({ success: false, reason: "invalid_url" });
+      }
+      return openObsidianInNewTab(url);
+    }
+    default:
+      return undefined;
+  }
+}
+
 browser.runtime.onMessage.addListener((message) => {
-  if (!message || message.type !== "SAVE_TABS") {
+  const pending = handleMessage(message);
+  if (!pending) {
     return undefined;
   }
 
-  return processExport(message.payload)
-    .then(() => ({ ok: true }))
-    .catch((error) => {
-      console.error("tabSidian failed to process save message", error);
-      return { ok: false, error: error?.message ?? "Export failed." };
-    });
+  return pending.catch((error) => {
+    console.error("tabSidian failed to process message", message?.type, error);
+    return { ok: false, error: error?.message ?? "Export failed." };
+  });
 });
 
 if (browser?.runtime?.onInstalled?.addListener) {
